@@ -1,0 +1,266 @@
+{
+  "info": {
+    "_postman_id": "civicbuild-auth-api",
+    "name": "CivicBuild Auth API",
+    "description": "CivicBuild backend authentication API.\n\n**Base URL:** `http://localhost:8081` (backend; frontend typically uses 8080)\n\n**Auth flow:**\n1. Register → 201 (no auto-login)\n2. Login → receive `accessToken` + `refreshToken`\n3. Call protected routes with `Authorization: Bearer {{accessToken}}`\n4. Refresh before access token expires (15 min)\n5. Logout revokes refresh token\n\n**Collection variables** are auto-populated by test scripts on Login/Refresh.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8081" },
+    { "key": "email", "value": "user@example.com" },
+    { "key": "password", "value": "Secret123" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "resetToken", "value": "" },
+    { "key": "googleIdToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "App Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/health",
+            "description": "Public liveness check. Returns `{ success, data: { status: \"UP\" } }`."
+          },
+          "response": []
+        },
+        {
+          "name": "Actuator Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health",
+            "description": "Spring Boot Actuator health endpoint (also public)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Success true', () => pm.expect(pm.response.json().success).to.be.true);",
+                  "pm.test('Role defaults to CUSTOMER', () => pm.expect(pm.response.json().data.role).to.eql('CUSTOMER'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Jane Doe\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/register",
+            "description": "Create a new account.\n\n**Body:** `{ fullName, email, password }`\n\n- `confirmPassword` is frontend-only — never send it here\n- Role is NOT accepted; defaults to `CUSTOMER`\n- Returns 201 with user info (no tokens)\n- Sends welcome email async via Resend\n- Rate limited: 5 attempts / 15 min per IP+email"
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+                  "}",
+                  "pm.test('Has tokens', () => {",
+                  "  pm.expect(json.data.accessToken).to.be.a('string');",
+                  "  pm.expect(json.data.refreshToken).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Authenticate and receive JWT access token + opaque refresh token.\n\n**Body:** `{ email, password }`\n\n- 401: invalid credentials (generic message)\n- 403: account deactivated\n- Rate limited: 5 attempts / 15 min per IP+email"
+          },
+          "response": []
+        },
+        {
+          "name": "Google Sign-In",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idToken\": \"{{googleIdToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/google",
+            "description": "Exchange a verified Google ID token for CivicBuild JWT access + refresh tokens.\n\nObtain `idToken` from the mobile/web Google Sign-In SDK — do not craft this manually.\n\n- Links to existing account if email matches manual signup\n- New users: role=CUSTOMER, verification_status=UNVERIFIED\n- Google-only accounts cannot use manual login"
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/refresh",
+            "description": "Exchange a valid refresh token for a new access + refresh token pair.\n\n**Rotation:** the old refresh token is revoked; use the new one going forward."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/logout",
+            "description": "Revoke the refresh token. The access JWT remains valid until natural expiry (~15 min) — standard stateless JWT trade-off."
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/forgot-password",
+            "description": "Request a password reset link.\n\n**Always returns 200** with a generic message — never reveals whether the email exists (anti-enumeration).\n\nIf the email exists, a reset link is emailed via Resend. Copy the `token` query param into `{{resetToken}}` for the Reset Password request."
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"NewSecret456\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/reset-password",
+            "description": "Reset password using the token from the email link.\n\n**Body:** `{ token, newPassword }`\n\n- Token is single-use (30 min expiry)\n- All refresh tokens for the user are revoked on success\n- 401 if token is invalid, expired, or already used"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Error Cases",
+      "item": [
+        {
+          "name": "Register - Duplicate Email (409)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Duplicate\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/register"
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Wrong Password (401)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"WrongPass1\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          },
+          "response": []
+        },
+        {
+          "name": "Register - Validation Error (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"\",\n  \"email\": \"not-an-email\",\n  \"password\": \"short\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/register"
+          },
+          "response": []
+        },
+        {
+          "name": "Protected Route - No Token (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/some-protected-endpoint",
+            "description": "Any non-public route without a Bearer token returns 401 JSON."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
