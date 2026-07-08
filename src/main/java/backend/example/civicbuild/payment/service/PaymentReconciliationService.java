@@ -4,6 +4,9 @@ import backend.example.civicbuild.order.entity.Order;
 import backend.example.civicbuild.order.entity.OrderStatus;
 import backend.example.civicbuild.order.repository.OrderRepository;
 import backend.example.civicbuild.order.service.OrderStateMachine;
+import backend.example.civicbuild.auth.entity.User;
+import backend.example.civicbuild.auth.repository.UserRepository;
+import backend.example.civicbuild.email.service.EmailService;
 import backend.example.civicbuild.payment.exception.PaymentAmountMismatchException;
 import backend.example.civicbuild.payment.util.PaystackMoneyConverter;
 import java.util.Optional;
@@ -19,10 +22,18 @@ public class PaymentReconciliationService {
 
     private final OrderRepository orderRepository;
     private final OrderStateMachine stateMachine;
+    private final UserRepository userRepository;
+    private final EmailService emailService;
 
-    public PaymentReconciliationService(OrderRepository orderRepository, OrderStateMachine stateMachine) {
+    public PaymentReconciliationService(
+            OrderRepository orderRepository,
+            OrderStateMachine stateMachine,
+            UserRepository userRepository,
+            EmailService emailService) {
         this.orderRepository = orderRepository;
         this.stateMachine = stateMachine;
+        this.userRepository = userRepository;
+        this.emailService = emailService;
     }
 
     @Transactional
@@ -68,6 +79,13 @@ public class PaymentReconciliationService {
         stateMachine.transition(order, OrderStatus.PAID);
         orderRepository.save(order);
         log.info("Order {} marked PAID via {}", order.getId(), source);
+        sendPaymentConfirmationEmail(order);
+    }
+
+    private void sendPaymentConfirmationEmail(Order order) {
+        userRepository.findById(order.getUserId()).ifPresentOrElse(
+                user -> emailService.sendPaymentConfirmationEmail(user, order),
+                () -> log.warn("Skipping payment email — user {} not found for order {}", order.getUserId(), order.getId()));
     }
 
     @Transactional

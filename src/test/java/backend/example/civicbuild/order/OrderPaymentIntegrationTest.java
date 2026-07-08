@@ -72,7 +72,7 @@ class OrderPaymentIntegrationTest extends IntegrationTestBase {
         UUID orderId = UUID.fromString((String) checkoutData.get("orderId"));
 
         Order pending = orderRepository.findById(orderId).orElseThrow();
-        assertThat(pending.getStatus()).isEqualTo(OrderStatus.PENDING);
+        assertThat(pending.getStatus()).isEqualTo(OrderStatus.PROCESSING);
         assertThat(pending.getTotal()).isEqualByComparingTo("200.00");
 
         String webhookBody = webhookPayload(reference, 20000L, 4099797291L);
@@ -128,7 +128,7 @@ class OrderPaymentIntegrationTest extends IntegrationTestBase {
                 String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(orderRepository.findById(orderId).orElseThrow().getStatus()).isEqualTo(OrderStatus.PENDING);
+        assertThat(orderRepository.findById(orderId).orElseThrow().getStatus()).isEqualTo(OrderStatus.PROCESSING);
         assertThat(paymentEventRepository.count()).isZero();
     }
 

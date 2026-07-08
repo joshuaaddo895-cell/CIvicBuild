@@ -3,6 +3,7 @@ package backend.example.civicbuild.email.service;
 import backend.example.civicbuild.auth.entity.User;
 import backend.example.civicbuild.config.AppProperties;
 import backend.example.civicbuild.email.template.EmailTemplates;
+import backend.example.civicbuild.order.entity.Order;
 import com.resend.Resend;
 import com.resend.core.exception.ResendException;
 import com.resend.services.emails.model.CreateEmailOptions;
@@ -42,6 +43,13 @@ public class ResendEmailService implements EmailService {
     public void sendPasswordResetEmail(User user, String resetLink) {
         send(user.getEmail(), EmailTemplates.PASSWORD_RESET_SUBJECT,
                 EmailTemplates.passwordReset(user.getFullName(), resetLink), "password-reset");
+    }
+
+    @Override
+    @Async("emailExecutor")
+    public void sendPaymentConfirmationEmail(User user, Order order) {
+        send(user.getEmail(), EmailTemplates.PAYMENT_CONFIRMATION_SUBJECT,
+                EmailTemplates.paymentConfirmation(user.getFullName(), order), "payment-confirmation");
     }
 
     private void send(String to, String subject, String html, String type) {

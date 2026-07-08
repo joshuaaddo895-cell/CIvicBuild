@@ -64,6 +64,8 @@ public class CheckoutService {
             long amountPesewas = PaystackMoneyConverter.toPesewas(total);
             PaystackInitializeResponse init = paystackClient.initializeTransaction(
                     user.email(), amountPesewas, reference, order.getCurrency());
+            stateMachine.transition(order, OrderStatus.PROCESSING);
+            orderRepository.save(order);
             return new CheckoutResponse(
                     order.getId(),
                     reference,
