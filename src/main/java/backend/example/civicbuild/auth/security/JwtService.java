@@ -46,7 +46,27 @@ public class JwtService {
     public JwtService(AppProperties properties, Clock clock) {
         this.properties = properties;
         this.clock = clock;
-        this.signingKey = Keys.hmacShaKeyFor(resolveSigningKeyBytes(properties.jwt().secret()));
+        try {
+            String secret = properties.jwt().secret();
+            if (!StringUtils.hasText(secret)) {
+                throw invalidJwtSecret(
+                        "JWT secret is missing or invalid — check JWT_SECRET environment variable");
+            }
+            byte[] keyBytes = resolveSigningKeyBytes(secret);
+            this.signingKey = Keys.hmacShaKeyFor(keyBytes);
+        } catch (IllegalStateException ex) {
+            log.error(ex.getMessage());
+            throw ex;
+        } catch (RuntimeException ex) {
+            String message =
+                    "JWT secret is missing or invalid — check JWT_SECRET environment variable";
+            log.error("{} ({})", message, ex.getClass().getSimpleName());
+            throw new IllegalStateException(message, ex);
+        }
+    }
+
+    private static IllegalStateException invalidJwtSecret(String message) {
+        return new IllegalStateException(message);
     }
 
     /**
@@ -55,7 +75,8 @@ public class JwtService {
      */
     static byte[] resolveSigningKeyBytes(String secret) {
         if (!StringUtils.hasText(secret)) {
-            throw new IllegalStateException("JWT_SECRET is not configured");
+            throw invalidJwtSecret(
+                    "JWT secret is missing or invalid — check JWT_SECRET environment variable");
         }
         try {
             byte[] decoded = Base64.getDecoder().decode(secret.trim());
@@ -67,8 +88,8 @@ public class JwtService {
         }
         byte[] raw = secret.getBytes(StandardCharsets.UTF_8);
         if (raw.length < 32) {
-            throw new IllegalStateException(
-                    "JWT_SECRET must be at least 256 bits (32 bytes). "
+            throw invalidJwtSecret(
+                    "JWT secret is missing or invalid — JWT_SECRET must be at least 32 bytes. "
                             + "Generate one with: openssl rand -base64 64");
         }
         return raw;
