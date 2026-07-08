@@ -1,11 +1,14 @@
 package backend.example.civicbuild.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import backend.example.civicbuild.email.EmailRecipient;
 import backend.example.civicbuild.auth.entity.PasswordResetToken;
 import backend.example.civicbuild.auth.entity.User;
 import backend.example.civicbuild.auth.repository.PasswordResetTokenRepository;
@@ -104,6 +107,7 @@ class UserDeleteCascadeIntegrationTest extends IntegrationTestBase {
         assertThat(event.getOrderId()).isEqualTo(orderId);
 
         deleteAccount(loginData);
+        verify(emailService).sendAccountDeletedEmail(any(EmailRecipient.class));
 
         assertThat(userRepository.existsById(userId)).isFalse();
         assertThat(refreshTokenRepository.count()).isZero();

@@ -13,6 +13,8 @@ public final class EmailTemplates {
 
     public static final String WELCOME_SUBJECT = "Welcome to CivicBuild";
     public static final String PASSWORD_RESET_SUBJECT = "Reset your CivicBuild password";
+    public static final String PASSWORD_CHANGED_SUBJECT = "Your CivicBuild password was changed";
+    public static final String ACCOUNT_DELETED_SUBJECT = "Your CivicBuild account was deleted";
     public static final String PAYMENT_CONFIRMATION_SUBJECT = "Payment received — CivicBuild order confirmed";
 
     private EmailTemplates() {
@@ -43,6 +45,32 @@ public final class EmailTemplates {
                   <p>— The CivicBuild Team</p>
                 </div>
                 """.formatted(safeName, safeLink);
+    }
+
+    public static String passwordChanged(String fullName) {
+        String safeName = HtmlUtils.htmlEscape(fullName);
+        return """
+                <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+                  <h2>Password changed</h2>
+                  <p>Hi %s,</p>
+                  <p>Your CivicBuild password was changed successfully. All active sessions were signed out.</p>
+                  <p>If you did not make this change, contact support immediately.</p>
+                  <p>— The CivicBuild Team</p>
+                </div>
+                """.formatted(safeName);
+    }
+
+    public static String accountDeleted(String fullName) {
+        String safeName = HtmlUtils.htmlEscape(fullName);
+        return """
+                <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+                  <h2>Account deleted</h2>
+                  <p>Hi %s,</p>
+                  <p>Your CivicBuild account and associated data have been permanently deleted as requested.</p>
+                  <p>If you did not request this, contact support immediately.</p>
+                  <p>— The CivicBuild Team</p>
+                </div>
+                """.formatted(safeName);
     }
 
     public static String paymentConfirmation(String fullName, Order order) {
