@@ -14,7 +14,8 @@ import backend.example.civicbuild.auth.exception.InvalidCredentialsException;
 import backend.example.civicbuild.auth.repository.UserRepository;
 import backend.example.civicbuild.auth.security.JwtService;
 import backend.example.civicbuild.config.AppProperties;
-import backend.example.civicbuild.email.service.EmailService;
+import backend.example.civicbuild.email.EmailRecipient;
+import backend.example.civicbuild.email.service.EmailPublisher;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,17 +36,17 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final TokenService tokenService;
-    private final EmailService emailService;
+    private final EmailPublisher emailPublisher;
     private final long accessTokenTtlSeconds;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
-            JwtService jwtService, TokenService tokenService, EmailService emailService,
+            JwtService jwtService, TokenService tokenService, EmailPublisher emailPublisher,
             AppProperties properties) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.tokenService = tokenService;
-        this.emailService = emailService;
+        this.emailPublisher = emailPublisher;
         this.accessTokenTtlSeconds = properties.jwt().accessTokenTtl().toSeconds();
     }
 
@@ -66,8 +67,8 @@ public class AuthService {
         User saved = userRepository.saveAndFlush(user);
         log.info("Registered new user id={}", saved.getId());
 
-        // Best-effort, async: an email hiccup must not fail registration.
-        emailService.sendWelcomeEmail(saved);
+        // Best-effort after commit: an email hiccup must not fail registration.
+        emailPublisher.welcome(EmailRecipient.from(saved));
 
         return UserResponse.from(saved);
     }

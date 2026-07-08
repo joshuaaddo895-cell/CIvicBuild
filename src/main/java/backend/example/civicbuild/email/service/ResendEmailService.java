@@ -1,7 +1,7 @@
 package backend.example.civicbuild.email.service;
 
-import backend.example.civicbuild.auth.entity.User;
 import backend.example.civicbuild.config.AppProperties;
+import backend.example.civicbuild.email.EmailRecipient;
 import backend.example.civicbuild.email.template.EmailTemplates;
 import backend.example.civicbuild.order.entity.Order;
 import com.resend.Resend;
@@ -10,13 +10,11 @@ import com.resend.services.emails.model.CreateEmailOptions;
 import com.resend.services.emails.model.CreateEmailResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 /**
- * {@link EmailService} backed by the Resend API. All sends run on the dedicated {@code emailExecutor}
- * and swallow provider failures (logged with context) so a mail outage never breaks registration or
- * password-reset flows.
+ * {@link EmailService} backed by the Resend API. Invoked from {@link EmailPublisher} on the
+ * dedicated {@code emailExecutor}; provider failures are logged and swallowed.
  */
 @Service
 public class ResendEmailService implements EmailService {
@@ -27,44 +25,72 @@ public class ResendEmailService implements EmailService {
     private final String from;
 
     public ResendEmailService(AppProperties properties) {
-        this.resend = new Resend(properties.email().resendApiKey());
+        String apiKey = properties.email().resendApiKey();
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("RESEND_API_KEY is not configured");
+        }
+        this.resend = new Resend(apiKey);
         this.from = properties.email().from();
+        log.info("Resend email service configured (from: {})", from);
+        String resetBaseUrl = properties.email().resetBaseUrl();
+        if (resetBaseUrl != null && resetBaseUrl.contains("localhost")) {
+            log.warn(
+                    "PASSWORD_RESET_BASE_URL is set to {} — forgot-password emails will contain a localhost link",
+                    resetBaseUrl);
+        }
     }
 
     @Override
-    @Async("emailExecutor")
-    public void sendWelcomeEmail(User user) {
-        send(user.getEmail(), EmailTemplates.WELCOME_SUBJECT,
-                EmailTemplates.welcome(user.getFullName()), "welcome");
+    public void sendWelcomeEmail(EmailRecipient recipient) {
+        send(recipient, EmailTemplates.WELCOME_SUBJECT, EmailTemplates.welcome(recipient.fullName()), "welcome");
     }
 
     @Override
-    @Async("emailExecutor")
-    public void sendPasswordResetEmail(User user, String resetLink) {
-        send(user.getEmail(), EmailTemplates.PASSWORD_RESET_SUBJECT,
-                EmailTemplates.passwordReset(user.getFullName(), resetLink), "password-reset");
+    public void sendPasswordResetEmail(EmailRecipient recipient, String resetLink) {
+        send(recipient, EmailTemplates.PASSWORD_RESET_SUBJECT,
+                EmailTemplates.passwordReset(recipient.fullName(), resetLink), "password-reset");
     }
 
     @Override
-    @Async("emailExecutor")
-    public void sendPaymentConfirmationEmail(User user, Order order) {
-        send(user.getEmail(), EmailTemplates.PAYMENT_CONFIRMATION_SUBJECT,
-                EmailTemplates.paymentConfirmation(user.getFullName(), order), "payment-confirmation");
+    public void sendPasswordChangedEmail(EmailRecipient recipient) {
+        send(recipient, EmailTemplates.PASSWORD_CHANGED_SUBJECT,
+                EmailTemplates.passwordChanged(recipient.fullName()), "password-changed");
     }
 
-    private void send(String to, String subject, String html, String type) {
+    @Override
+    public void sendAccountDeletedEmail(EmailRecipient recipient) {
+        send(recipient, EmailTemplates.ACCOUNT_DELETED_SUBJECT,
+                EmailTemplates.accountDeleted(recipient.fullName()), "account-deleted");
+    }
+
+    @Override
+    public void sendPaymentConfirmationEmail(EmailRecipient recipient, Order order) {
+        send(recipient, EmailTemplates.PAYMENT_CONFIRMATION_SUBJECT,
+                EmailTemplates.paymentConfirmation(recipient.fullName(), order), "payment-confirmation");
+    }
+
+    private void send(EmailRecipient recipient, String subject, String html, String type) {
         CreateEmailOptions options = CreateEmailOptions.builder()
                 .from(from)
-                .to(to)
+                .to(recipient.email())
                 .subject(subject)
                 .html(html)
                 .build();
         try {
             CreateEmailResponse response = resend.emails().send(options);
-            log.info("Sent {} email (id={})", type, response.getId());
+            log.info("Sent {} email to {} (id={})", type, maskEmail(recipient.email()), response.getId());
         } catch (ResendException e) {
-            // Never rethrow: email delivery is best-effort relative to the triggering operation.
-            log.error("Failed to send {} email to recipient", type, e);
+            log.error("Failed to send {} email to {} — Resend error: {}", type, maskEmail(recipient.email()), e.getMessage(), e);
+        } catch (RuntimeException e) {
+            log.error("Unexpected failure sending {} email to {}", type, maskEmail(recipient.email()), e);
         }
+    }
+
+    private static String maskEmail(String email) {
+        int at = email.indexOf('@');
+        if (at <= 1) {
+            return "***";
+        }
+        return email.charAt(0) + "***" + email.substring(at);
     }
 }

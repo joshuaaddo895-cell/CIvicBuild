@@ -15,7 +15,8 @@ import backend.example.civicbuild.auth.exception.AccountInactiveException;
 import backend.example.civicbuild.auth.repository.UserRepository;
 import backend.example.civicbuild.auth.security.GoogleTokenVerifierService;
 import backend.example.civicbuild.auth.security.VerifiedGoogleProfile;
-import backend.example.civicbuild.email.service.EmailService;
+import backend.example.civicbuild.email.EmailRecipient;
+import backend.example.civicbuild.email.service.EmailPublisher;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -42,7 +43,7 @@ class GoogleAuthServiceTest {
     @Mock
     private AuthService authService;
     @Mock
-    private EmailService emailService;
+    private EmailPublisher emailPublisher;
 
     private GoogleAuthService googleAuthService;
     private final Clock clock = Clock.fixed(Instant.parse("2026-07-07T12:00:00Z"), ZoneOffset.UTC);
@@ -50,7 +51,7 @@ class GoogleAuthServiceTest {
     @BeforeEach
     void setUp() {
         googleAuthService = new GoogleAuthService(
-                googleTokenVerifier, userRepository, authService, emailService, clock);
+                googleTokenVerifier, userRepository, authService, emailPublisher, clock);
         when(googleTokenVerifier.verify(ID_TOKEN)).thenReturn(PROFILE);
     }
 
@@ -78,7 +79,7 @@ class GoogleAuthServiceTest {
         assertThat(created.getRole()).isEqualTo(Role.CUSTOMER);
         assertThat(created.getVerificationStatus()).isEqualTo(VerificationStatus.UNVERIFIED);
         assertThat(created.getEmailVerifiedAt()).isEqualTo(clock.instant());
-        verify(emailService).sendWelcomeEmail(any(User.class));
+        verify(emailPublisher).welcome(any(EmailRecipient.class));
     }
 
     @Test
@@ -102,7 +103,7 @@ class GoogleAuthServiceTest {
         assertThat(existing.getProfilePictureUrl()).isEqualTo(PROFILE.pictureUrl());
         assertThat(existing.getEmailVerifiedAt()).isEqualTo(clock.instant());
         verify(userRepository, never()).saveAndFlush(any());
-        verify(emailService, never()).sendWelcomeEmail(any());
+        verify(emailPublisher, never()).welcome(any());
     }
 
     @Test

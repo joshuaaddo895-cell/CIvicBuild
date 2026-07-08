@@ -8,7 +8,8 @@ import backend.example.civicbuild.auth.exception.AccountInactiveException;
 import backend.example.civicbuild.auth.repository.UserRepository;
 import backend.example.civicbuild.auth.security.GoogleTokenVerifierService;
 import backend.example.civicbuild.auth.security.VerifiedGoogleProfile;
-import backend.example.civicbuild.email.service.EmailService;
+import backend.example.civicbuild.email.EmailRecipient;
+import backend.example.civicbuild.email.service.EmailPublisher;
 import java.time.Clock;
 import java.time.Instant;
 import org.slf4j.Logger;
@@ -29,16 +30,16 @@ public class GoogleAuthService {
     private final GoogleTokenVerifierService googleTokenVerifier;
     private final UserRepository userRepository;
     private final AuthService authService;
-    private final EmailService emailService;
+    private final EmailPublisher emailPublisher;
     private final Clock clock;
 
     public GoogleAuthService(GoogleTokenVerifierService googleTokenVerifier,
-            UserRepository userRepository, AuthService authService, EmailService emailService,
+            UserRepository userRepository, AuthService authService, EmailPublisher emailPublisher,
             Clock clock) {
         this.googleTokenVerifier = googleTokenVerifier;
         this.userRepository = userRepository;
         this.authService = authService;
-        this.emailService = emailService;
+        this.emailPublisher = emailPublisher;
         this.clock = clock;
     }
 
@@ -77,7 +78,7 @@ public class GoogleAuthService {
                 .build();
         User saved = userRepository.saveAndFlush(user);
         log.info("Created Google Sign-In user id={}", saved.getId());
-        emailService.sendWelcomeEmail(saved);
+        emailPublisher.welcome(EmailRecipient.from(saved));
         return saved;
     }
 

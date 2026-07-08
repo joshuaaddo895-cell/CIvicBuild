@@ -1,6 +1,7 @@
 package backend.example.civicbuild.auth.controller;
 
 import backend.example.civicbuild.auth.dto.AuthResponse;
+import backend.example.civicbuild.auth.dto.ChangePasswordRequest;
 import backend.example.civicbuild.auth.dto.ForgotPasswordRequest;
 import backend.example.civicbuild.auth.dto.GoogleSignInRequest;
 import backend.example.civicbuild.auth.dto.LoginRequest;
@@ -10,8 +11,10 @@ import backend.example.civicbuild.auth.dto.RegisterRequest;
 import backend.example.civicbuild.auth.dto.ResetPasswordRequest;
 import backend.example.civicbuild.auth.dto.UserResponse;
 import backend.example.civicbuild.auth.service.AuthService;
+import backend.example.civicbuild.auth.service.ChangePasswordService;
 import backend.example.civicbuild.auth.service.GoogleAuthService;
 import backend.example.civicbuild.auth.service.PasswordResetService;
+import backend.example.civicbuild.auth.security.AuthenticatedUser;
 import backend.example.civicbuild.common.dto.ApiResponse;
 import backend.example.civicbuild.common.web.ClientIpResolver;
 import backend.example.civicbuild.ratelimit.RateLimiterService;
@@ -19,6 +22,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,13 +39,16 @@ public class AuthController {
     private final AuthService authService;
     private final GoogleAuthService googleAuthService;
     private final PasswordResetService passwordResetService;
+    private final ChangePasswordService changePasswordService;
     private final RateLimiterService rateLimiter;
 
     public AuthController(AuthService authService, GoogleAuthService googleAuthService,
-            PasswordResetService passwordResetService, RateLimiterService rateLimiter) {
+            PasswordResetService passwordResetService, ChangePasswordService changePasswordService,
+            RateLimiterService rateLimiter) {
         this.authService = authService;
         this.googleAuthService = googleAuthService;
         this.passwordResetService = passwordResetService;
+        this.changePasswordService = changePasswordService;
         this.rateLimiter = rateLimiter;
     }
 
@@ -81,6 +88,14 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody LogoutRequest request) {
         authService.logout(request.refreshToken());
         return ResponseEntity.ok(ApiResponse.message("Logged out successfully"));
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        changePasswordService.changePassword(user, request);
+        return ResponseEntity.ok(ApiResponse.message("Password updated successfully"));
     }
 
     @PostMapping("/forgot-password")

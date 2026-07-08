@@ -8,7 +8,8 @@ import backend.example.civicbuild.auth.repository.RefreshTokenRepository;
 import backend.example.civicbuild.auth.repository.UserRepository;
 import backend.example.civicbuild.auth.security.TokenHasher;
 import backend.example.civicbuild.config.AppProperties;
-import backend.example.civicbuild.email.service.EmailService;
+import backend.example.civicbuild.email.EmailRecipient;
+import backend.example.civicbuild.email.service.EmailPublisher;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Locale;
@@ -34,21 +35,21 @@ public class PasswordResetService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final TokenHasher tokenHasher;
     private final PasswordEncoder passwordEncoder;
-    private final EmailService emailService;
+    private final EmailPublisher emailPublisher;
     private final AppProperties properties;
     private final Clock clock;
 
     public PasswordResetService(UserRepository userRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
             RefreshTokenRepository refreshTokenRepository, TokenHasher tokenHasher,
-            PasswordEncoder passwordEncoder, EmailService emailService, AppProperties properties,
+            PasswordEncoder passwordEncoder, EmailPublisher emailPublisher, AppProperties properties,
             Clock clock) {
         this.userRepository = userRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.tokenHasher = tokenHasher;
         this.passwordEncoder = passwordEncoder;
-        this.emailService = emailService;
+        this.emailPublisher = emailPublisher;
         this.properties = properties;
         this.clock = clock;
     }
@@ -70,7 +71,7 @@ public class PasswordResetService {
                     .build();
             passwordResetTokenRepository.save(token);
 
-            emailService.sendPasswordResetEmail(user, buildResetLink(rawToken));
+            emailPublisher.passwordReset(EmailRecipient.from(user), buildResetLink(rawToken));
             log.info("Issued password reset token for user id={}", user.getId());
         });
     }
@@ -92,6 +93,7 @@ public class PasswordResetService {
         // Standard practice: invalidate all sessions after a password change.
         int revoked = refreshTokenRepository.revokeAllActiveForUser(user.getId(), now);
         log.info("Password reset for user id={}; revoked {} active refresh token(s)", user.getId(), revoked);
+        emailPublisher.passwordChanged(EmailRecipient.from(user));
     }
 
     private String buildResetLink(String rawToken) {

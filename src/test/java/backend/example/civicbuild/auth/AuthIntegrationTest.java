@@ -2,11 +2,12 @@ package backend.example.civicbuild.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
 import backend.example.civicbuild.auth.entity.PasswordResetToken;
 import backend.example.civicbuild.auth.entity.User;
+import backend.example.civicbuild.email.EmailRecipient;
 import backend.example.civicbuild.auth.repository.PasswordResetTokenRepository;
 import backend.example.civicbuild.auth.repository.UserRepository;
 import backend.example.civicbuild.auth.security.TokenHasher;
@@ -40,6 +41,63 @@ class AuthIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     private TokenHasher tokenHasher;
+
+    @Test
+    void register_returnsUserOnly_notTokens() throws Exception {
+        String email = uniqueEmail();
+
+        ResponseEntity<String> response = rest.postForEntity(
+                authUrl("/register"),
+                new HttpEntity<>(Map.of("fullName", "Jane Doe", "email", email, "password", VALID_PASSWORD), jsonHeaders()),
+                String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        ApiResponse<Map<String, Object>> body = objectMapper.readValue(response.getBody(), new TypeReference<>() {});
+        assertThat(body.success()).isTrue();
+        assertThat(body.data()).containsKeys("id", "email", "fullName", "role");
+        assertThat(body.data()).doesNotContainKey("accessToken");
+        assertThat(body.data()).doesNotContainKey("refreshToken");
+    }
+
+    @Test
+    void changePassword_revokesOtherRefreshTokens_butCurrentAccessStillWorksUntilExpiry() throws Exception {
+        String email = uniqueEmail();
+        register(email, "Jane Doe", VALID_PASSWORD);
+        Map<String, Object> loginData = login(email, VALID_PASSWORD);
+        String accessToken = (String) loginData.get("accessToken");
+        String refreshToken = (String) loginData.get("refreshToken");
+
+        HttpHeaders headers = jsonHeaders();
+        headers.setBearerAuth(accessToken);
+
+        ResponseEntity<String> ok = rest.postForEntity(
+                authUrl("/change-password"),
+                new HttpEntity<>(Map.of("currentPassword", VALID_PASSWORD, "newPassword", "NewSecret456"), headers),
+                String.class);
+        assertThat(ok.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(emailService).sendPasswordChangedEmail(any(EmailRecipient.class));
+
+        refreshExpectingUnauthorized(refreshToken);
+        login(email, "NewSecret456");
+    }
+
+    @Test
+    void changePassword_rejectsWrongCurrentPassword() throws Exception {
+        String email = uniqueEmail();
+        register(email, "Jane Doe", VALID_PASSWORD);
+        Map<String, Object> loginData = login(email, VALID_PASSWORD);
+        HttpHeaders headers = jsonHeaders();
+        headers.setBearerAuth((String) loginData.get("accessToken"));
+
+        ResponseEntity<String> response = rest.postForEntity(
+                authUrl("/change-password"),
+                new HttpEntity<>(Map.of("currentPassword", "WrongPass1", "newPassword", "NewSecret456"), headers),
+                String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        ApiResponse<Void> body = objectMapper.readValue(response.getBody(), new TypeReference<>() {});
+        assertThat(body.message()).isEqualTo("Current password is incorrect");
+    }
 
     @Test
     void registerLoginRefreshLogout_happyPath() throws Exception {
@@ -166,7 +224,7 @@ class AuthIntegrationTest extends IntegrationTestBase {
                 String.class);
 
         ArgumentCaptor<String> resetLinkCaptor = ArgumentCaptor.forClass(String.class);
-        verify(emailService).sendPasswordResetEmail(eq(user), resetLinkCaptor.capture());
+        verify(emailService).sendPasswordResetEmail(any(EmailRecipient.class), resetLinkCaptor.capture());
         String rawToken = extractTokenFromResetLink(resetLinkCaptor.getValue());
         String newPassword = "ResetPass789";
 
@@ -180,6 +238,7 @@ class AuthIntegrationTest extends IntegrationTestBase {
 
         loginExpectingUnauthorized(email, VALID_PASSWORD);
         login(email, newPassword);
+        verify(emailService).sendPasswordChangedEmail(any(EmailRecipient.class));
     }
 
     private void register(String email, String fullName, String password) {
@@ -189,7 +248,7 @@ class AuthIntegrationTest extends IntegrationTestBase {
                 String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        verify(emailService).sendWelcomeEmail(any(User.class));
+        verify(emailService).sendWelcomeEmail(any(EmailRecipient.class));
     }
 
     @SuppressWarnings("unchecked")
