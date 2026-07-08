@@ -1,18 +1,21 @@
 {
   "info": {
     "_postman_id": "civicbuild-auth-api",
-    "name": "CivicBuild Auth API",
-    "description": "CivicBuild backend authentication API.\n\n**Base URL:** `http://localhost:8081` (backend; frontend typically uses 8080)\n\n**Auth flow:**\n1. Register → 201 (no auto-login)\n2. Login → receive `accessToken` + `refreshToken`\n3. Call protected routes with `Authorization: Bearer {{accessToken}}`\n4. Refresh before access token expires (15 min)\n5. Logout revokes refresh token\n\n**Collection variables** are auto-populated by test scripts on Login/Refresh.",
+    "name": "CivicBuild API",
+    "description": "CivicBuild backend API (auth + orders/payments).\n\n**Production:** `https://civicbuild-production.up.railway.app`\n**Local:** `http://localhost:8081`\n\nSwitch `baseUrl` between `{{baseUrl}}` (Railway) and `{{baseUrlLocal}}` (Docker/local).\n\n**Auth flow:**\n1. Register → 201\n2. Login → `accessToken` + `refreshToken` (auto-saved)\n3. Protected routes: `Authorization: Bearer {{accessToken}}`\n4. Checkout → Paystack `authorizationUrl`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8081" },
+    { "key": "baseUrl", "value": "https://civicbuild-production.up.railway.app" },
+    { "key": "baseUrlLocal", "value": "http://localhost:8081" },
     { "key": "email", "value": "user@example.com" },
     { "key": "password", "value": "Secret123" },
     { "key": "accessToken", "value": "" },
     { "key": "refreshToken", "value": "" },
     { "key": "resetToken", "value": "" },
-    { "key": "googleIdToken", "value": "" }
+    { "key": "googleIdToken", "value": "" },
+    { "key": "orderId", "value": "" },
+    { "key": "paystackReference", "value": "" }
   ],
   "item": [
     {
@@ -66,7 +69,7 @@
               "raw": "{\n  \"fullName\": \"Jane Doe\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
             },
             "url": "{{baseUrl}}/api/auth/register",
-            "description": "Create a new account.\n\n**Body:** `{ fullName, email, password }`\n\n- `confirmPassword` is frontend-only — never send it here\n- Role is NOT accepted; defaults to `CUSTOMER`\n- Returns 201 with user info (no tokens)\n- Sends welcome email async via Resend\n- Rate limited: 5 attempts / 15 min per IP+email"
+            "description": "Create a new account. Rate limited: 5 attempts / 15 min per IP+email."
           },
           "response": []
         },
@@ -99,8 +102,7 @@
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
             },
-            "url": "{{baseUrl}}/api/auth/login",
-            "description": "Authenticate and receive JWT access token + opaque refresh token.\n\n**Body:** `{ email, password }`\n\n- 401: invalid credentials (generic message)\n- 403: account deactivated\n- Rate limited: 5 attempts / 15 min per IP+email"
+            "url": "{{baseUrl}}/api/auth/login"
           },
           "response": []
         },
@@ -129,8 +131,7 @@
               "mode": "raw",
               "raw": "{\n  \"idToken\": \"{{googleIdToken}}\"\n}"
             },
-            "url": "{{baseUrl}}/api/auth/google",
-            "description": "Exchange a verified Google ID token for CivicBuild JWT access + refresh tokens.\n\nObtain `idToken` from the mobile/web Google Sign-In SDK — do not craft this manually.\n\n- Links to existing account if email matches manual signup\n- New users: role=CUSTOMER, verification_status=UNVERIFIED\n- Google-only accounts cannot use manual login"
+            "url": "{{baseUrl}}/api/auth/google"
           },
           "response": []
         },
@@ -159,8 +160,7 @@
               "mode": "raw",
               "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
             },
-            "url": "{{baseUrl}}/api/auth/refresh",
-            "description": "Exchange a valid refresh token for a new access + refresh token pair.\n\n**Rotation:** the old refresh token is revoked; use the new one going forward."
+            "url": "{{baseUrl}}/api/auth/refresh"
           },
           "response": []
         },
@@ -173,8 +173,7 @@
               "mode": "raw",
               "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
             },
-            "url": "{{baseUrl}}/api/auth/logout",
-            "description": "Revoke the refresh token. The access JWT remains valid until natural expiry (~15 min) — standard stateless JWT trade-off."
+            "url": "{{baseUrl}}/api/auth/logout"
           },
           "response": []
         },
@@ -187,8 +186,7 @@
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\"\n}"
             },
-            "url": "{{baseUrl}}/api/auth/forgot-password",
-            "description": "Request a password reset link.\n\n**Always returns 200** with a generic message — never reveals whether the email exists (anti-enumeration).\n\nIf the email exists, a reset link is emailed via Resend. Copy the `token` query param into `{{resetToken}}` for the Reset Password request."
+            "url": "{{baseUrl}}/api/auth/forgot-password"
           },
           "response": []
         },
@@ -201,8 +199,111 @@
               "mode": "raw",
               "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"newPassword\": \"NewSecret456\"\n}"
             },
-            "url": "{{baseUrl}}/api/auth/reset-password",
-            "description": "Reset password using the token from the email link.\n\n**Body:** `{ token, newPassword }`\n\n- Token is single-use (30 min expiry)\n- All refresh tokens for the user are revoked on success\n- 401 if token is invalid, expired, or already used"
+            "url": "{{baseUrl}}/api/auth/reset-password"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Checkout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "  pm.collectionVariables.set('orderId', json.data.orderId);",
+                  "  pm.collectionVariables.set('paystackReference', json.data.paystackReference);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"productName\": \"Cement\",\n      \"supplierName\": \"BuildCo\",\n      \"unitPrice\": 100.00,\n      \"quantity\": 2,\n      \"unit\": \"bags\"\n    }\n  ],\n  \"delivery\": {\n    \"address\": \"12 Market Road\",\n    \"city\": \"Accra\",\n    \"region\": \"Greater Accra\",\n    \"phoneNumber\": \"+233201234567\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/orders/checkout",
+            "description": "Creates order (PENDING), initializes Paystack, returns `authorizationUrl` for WebView. Requires JWT. Totals recomputed server-side."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{orderId}}/verify",
+            "description": "Fallback: calls Paystack Verify API for stored reference. Webhook is primary source of truth."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Order",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{orderId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "List My Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/api/orders"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Payments (reference)",
+      "item": [
+        {
+          "name": "Paystack Callback (public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payments/paystack/callback",
+            "description": "Browser redirect after Paystack checkout. NOT payment confirmation — status updates via webhook or /verify only."
+          },
+          "response": []
+        },
+        {
+          "name": "Paystack Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-paystack-signature", "value": "<HMAC-SHA512 of raw body>" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"charge.success\",\n  \"data\": {\n    \"id\": 4099797291,\n    \"reference\": \"{{paystackReference}}\",\n    \"amount\": 20000,\n    \"currency\": \"GHS\",\n    \"status\": \"success\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/api/payments/webhook",
+            "description": "Called by Paystack only. Signature must be computed from raw body with PAYSTACK_SECRET_KEY. Configure webhook URL in Paystack dashboard:\n`https://civicbuild-production.up.railway.app/api/payments/webhook`"
           },
           "response": []
         }
@@ -255,8 +356,8 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/some-protected-endpoint",
-            "description": "Any non-public route without a Bearer token returns 401 JSON."
+            "url": "{{baseUrl}}/api/orders",
+            "description": "Protected route without Bearer token returns 401."
           },
           "response": []
         }

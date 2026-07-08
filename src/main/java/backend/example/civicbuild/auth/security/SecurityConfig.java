@@ -24,6 +24,8 @@ public class SecurityConfig {
     private static final String[] PUBLIC_ENDPOINTS = {
             "/api/auth/**",
             "/api/health",
+            "/api/payments/webhook",
+            "/api/payments/paystack/callback",
             "/actuator/health",
             "/actuator/health/**",
             "/error"

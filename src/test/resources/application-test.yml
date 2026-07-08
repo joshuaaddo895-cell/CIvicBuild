@@ -24,6 +24,12 @@ app:
     reset-base-url: http://localhost:8080/reset-password
   google:
     web-client-id: test-google-web-client-id.apps.googleusercontent.com
+  paystack:
+    secret-key: sk_test_unit_test_secret_key
+    public-key: pk_test_unit_test_public_key
+    callback-url: http://localhost:8081/api/payments/paystack/callback
+    webhook-url: http://localhost:8081/api/payments/webhook
+    webhook-ip-check-enabled: false
 
 logging:
   level:

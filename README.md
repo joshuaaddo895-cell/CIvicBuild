@@ -2,7 +2,21 @@
 
 Spring Boot REST API for **CivicBuild** — a construction marketplace platform connecting customers, construction agencies, and delivery providers.
 
-This repository contains the backend auth module: sign up, sign in, sign out, token refresh, and password reset.
+This repository contains the backend: authentication, Google Sign-In, orders, and Paystack payments.
+
+**Production API:** https://civicbuild-production.up.railway.app
+
+---
+
+## Repository layout (important)
+
+The Spring Boot project root is **this folder** (`civicbuild/`), which must contain `pom.xml`, `Dockerfile`, and `src/` at the **Git repository root** when you push to GitHub.
+
+If Railway reports *"empty civicbuild/ directory"*, the repo was pushed from the wrong parent folder. Fix:
+
+1. Run all `git` commands from `civicbuild/civicbuild` (inner folder)
+2. In Railway → **Settings** → **Root Directory** → leave blank or `/` (not `civicbuild`)
+3. **Builder** → **Dockerfile** (not Railpack auto-detect)
 
 ---
 
@@ -24,11 +38,125 @@ This repository contains the backend auth module: sign up, sign in, sign out, to
 - **Java 21** (JDK)
 - **Maven** (or use the included `./mvnw` wrapper)
 - A **`.env`** file with your credentials (see [Environment variables](#environment-variables))
-- **Docker Desktop** (optional — only needed for integration tests)
+- **Docker Desktop** (optional — for integration tests and local Docker stack)
 
 ---
 
-## Quick Start
+## Docker
+
+Run the full stack locally with **Postgres**, **Redis**, and the **API** — no Neon/Upstash required.
+
+### 1. Configure environment
+
+```bash
+cp .env.docker.example .env
+```
+
+Fill in `JWT_SECRET`, `RESEND_API_KEY`, `GOOGLE_WEB_CLIENT_ID`, and Paystack keys.  
+Docker Compose overrides `NEON_DATABASE_URL` and `REDIS_URL` to use the local containers.
+
+### 2. Start everything
+
+```bash
+docker compose up --build
+```
+
+Or on Windows:
+
+```powershell
+.\scripts\docker-up.ps1
+```
+
+API: **http://localhost:8081**
+
+### 3. Infra only (API on host)
+
+Start just Postgres + Redis, then run the app with Maven:
+
+```powershell
+.\scripts\docker-infra.ps1
+# Set NEON_DATABASE_URL and REDIS_URL in .env to the printed local URLs
+.\mvnw.cmd spring-boot:run
+```
+
+### 4. Integration tests
+
+With Docker Desktop running:
+
+```powershell
+docker compose up -d postgres redis
+.\mvnw.cmd test
+```
+
+Testcontainers will also spin up isolated Postgres/Redis per test class when Docker is available.
+
+### 5. Production image (Railway / any host)
+
+The `Dockerfile` builds a multi-stage image. Set all env vars on the host platform — do not bake secrets into the image.
+
+```bash
+docker build -t civicbuild-api .
+docker run -p 8081:8081 --env-file .env civicbuild-api
+```
+
+---
+
+## Railway deployment
+
+**Live URL:** https://civicbuild-production.up.railway.app
+
+### 1. Push from the correct folder
+
+```powershell
+cd "path\to\civicbuild\civicbuild"   # inner folder — must see pom.xml here
+git add .
+git commit -m "your message"
+git push -u origin main
+```
+
+The GitHub repo root must contain `pom.xml`, `Dockerfile`, `src/` — not an empty nested `civicbuild/` folder.
+
+### 2. Railway service settings
+
+| Setting | Value |
+|---------|-------|
+| **Root Directory** | `/` (empty) |
+| **Builder** | Dockerfile |
+| **Health check** | `/api/health` |
+
+### 3. Railway environment variables
+
+Set in Railway → **Variables** (same as `.env`):
+
+| Variable | Example / notes |
+|----------|-----------------|
+| `NEON_DATABASE_URL` | Neon Postgres URL |
+| `REDIS_URL` | Upstash Redis URL |
+| `JWT_SECRET` | HS256 secret (≥32 bytes) |
+| `RESEND_API_KEY` | Resend API key |
+| `GOOGLE_WEB_CLIENT_ID` | Google OAuth web client ID |
+| `PAYSTACK_SECRET_KEY` | Paystack test/live secret |
+| `PAYSTACK_PUBLIC_KEY` | Paystack test/live public key |
+| `PAYSTACK_CALLBACK_URL` | `https://civicbuild-production.up.railway.app/api/payments/paystack/callback` |
+| `PAYSTACK_WEBHOOK_URL` | `https://civicbuild-production.up.railway.app/api/payments/webhook` |
+| `SERVER_PORT` | `8081` (or `${{PORT}}` if Railway injects PORT — see Railway docs) |
+
+### 4. Verify deployment
+
+```bash
+curl https://civicbuild-production.up.railway.app/api/health
+```
+
+### 5. Paystack dashboard
+
+| Field | Value |
+|-------|-------|
+| Test Callback URL | `https://civicbuild-production.up.railway.app/api/payments/paystack/callback` |
+| Test Webhook URL | `https://civicbuild-production.up.railway.app/api/payments/webhook` |
+
+---
+
+## Quick Start (without Docker)
 
 ### 1. Configure environment
 
@@ -110,7 +238,18 @@ All responses use the standard envelope:
 | `POST` | `/api/auth/forgot-password` | Public | Request password reset email |
 | `POST` | `/api/auth/reset-password` | Public | Reset password with email token |
 
-### Request / response contracts
+### Orders & payments
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/orders/checkout` | JWT | Create order + Paystack initialize → `authorizationUrl` |
+| `POST` | `/api/orders/{id}/verify` | JWT | Fallback Paystack verify (webhook is primary) |
+| `GET` | `/api/orders/{id}` | JWT | Get order (owner only) |
+| `GET` | `/api/orders` | JWT | List my orders |
+| `POST` | `/api/payments/webhook` | Public (signed) | Paystack webhook |
+| `GET` | `/api/payments/paystack/callback` | Public | Post-checkout redirect (not confirmation) |
+
+---
 
 **Register** `POST /api/auth/register`
 
@@ -161,15 +300,16 @@ Authorization: Bearer <accessToken>
 
 ## Postman Collection
 
-Import the collection to test all endpoints interactively:
+Import `postman/CivicBuild-Auth-API.postman_collection.json`
 
-1. Open Postman → **Import** → select `postman/CivicBuild-Auth-API.postman_collection.json`
-2. Collection variables are pre-set:
-   - `baseUrl` = `http://localhost:8081`
-   - `email`, `password` — update with your test account
-3. Run **Register** → **Login** (auto-saves tokens) → **Refresh** / **Logout**
+| Variable | Default | Use |
+|----------|---------|-----|
+| `baseUrl` | `https://civicbuild-production.up.railway.app` | Production (Railway) |
+| `baseUrlLocal` | `http://localhost:8081` | Docker / local Maven |
 
-The Login and Refresh requests include test scripts that automatically save `accessToken` and `refreshToken` to collection variables.
+To test locally, change request URLs from `{{baseUrl}}` to `{{baseUrlLocal}}`, or set `baseUrl` to `http://localhost:8081`.
+
+**Flow:** Register → Login (auto-saves tokens) → Checkout → Get Order / Verify Payment
 
 ---
 

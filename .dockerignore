@@ -1,0 +1,29 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Build output
+target/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# Secrets — injected at runtime via env_file / Railway / compose environment
+.env
+.env.*
+
+# Docs / tooling not needed in image
+postman/
+scripts/
+docs/
+*.md
+!README.md
+
+# Test artifacts
+**/surefire-reports/

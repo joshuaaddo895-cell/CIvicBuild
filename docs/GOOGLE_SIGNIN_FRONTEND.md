@@ -5,6 +5,17 @@ Your **Expo frontend is in a separate project** — apply these steps there.
 
 ---
 
+## API base URLs
+
+| Environment | URL |
+|-------------|-----|
+| **Production (Railway)** | `https://civicbuild-production.up.railway.app` |
+| **Local backend** | `http://localhost:8081` |
+
+Set `EXPO_PUBLIC_API_URL` accordingly.
+
+---
+
 ## Flow (confirmed)
 
 ```
@@ -41,7 +52,8 @@ npx expo install @react-native-google-signin/google-signin
 Use **public** Expo env vars (never put `GOOGLE_WEB_CLIENT_SECRET` in the app):
 
 ```env
-EXPO_PUBLIC_API_URL=http://localhost:8081
+EXPO_PUBLIC_API_URL=https://civicbuild-production.up.railway.app
+# Local dev: EXPO_PUBLIC_API_URL=http://localhost:8081
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=737938877454-i625gs5j47rb1u8dj0b84laivu19fhg1.apps.googleusercontent.com
 EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=737938877454-c1otu82hgk20cn2lo7eaiqh1d9de44ji.apps.googleusercontent.com
 ```
