@@ -56,6 +56,14 @@ public abstract class IntegrationTestBase {
         return "http://localhost:" + port + "/api/auth" + path;
     }
 
+    protected String orderUrl(String path) {
+        return "http://localhost:" + port + "/api/orders" + path;
+    }
+
+    protected String paymentUrl(String path) {
+        return "http://localhost:" + port + "/api/payments" + path;
+    }
+
     protected HttpHeaders jsonHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

@@ -20,7 +20,8 @@ public record AppProperties(
         PasswordReset passwordReset,
         RateLimit rateLimit,
         Email email,
-        Google google) {
+        Google google,
+        Paystack paystack) {
 
     public record NotNullJwt(
             @NotBlank String secret,
@@ -42,4 +43,11 @@ public record AppProperties(
 
     /** Google OAuth — only webClientId is required for ID-token verification. */
     public record Google(@NotBlank String webClientId) {}
+
+    public record Paystack(
+            @NotBlank String secretKey,
+            @NotBlank String publicKey,
+            @NotBlank String callbackUrl,
+            @NotBlank String webhookUrl,
+            boolean webhookIpCheckEnabled) {}
 }

@@ -62,7 +62,8 @@ class JwtServiceTest {
                 new AppProperties.PasswordReset(Duration.ofMinutes(30)),
                 new AppProperties.RateLimit(true, 5, Duration.ofMinutes(15)),
                 new AppProperties.Email("re_test", "test@example.com", "http://localhost/reset"),
-                TestAppProperties.TEST_GOOGLE);
+                TestAppProperties.TEST_GOOGLE,
+                TestAppProperties.TEST_PAYSTACK);
         JwtService shortLived = new JwtService(properties, FIXED_CLOCK);
         String token = shortLived.generateAccessToken(user);
 

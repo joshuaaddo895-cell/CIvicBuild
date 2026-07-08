@@ -11,6 +11,13 @@ public final class TestAppProperties {
     private TestAppProperties() {
     }
 
+    public static final AppProperties.Paystack TEST_PAYSTACK = new AppProperties.Paystack(
+            "sk_test_unit_test_secret_key",
+            "pk_test_unit_test_public_key",
+            "http://localhost:8081/api/payments/paystack/callback",
+            "http://localhost:8081/api/payments/webhook",
+            false);
+
     public static AppProperties defaults() {
         return new AppProperties(
                 new AppProperties.NotNullJwt(
@@ -21,6 +28,7 @@ public final class TestAppProperties {
                 new AppProperties.PasswordReset(Duration.ofMinutes(30)),
                 new AppProperties.RateLimit(true, 5, Duration.ofMinutes(15)),
                 new AppProperties.Email("re_test", "test@example.com", "http://localhost/reset"),
-                TEST_GOOGLE);
+                TEST_GOOGLE,
+                TEST_PAYSTACK);
     }
 }

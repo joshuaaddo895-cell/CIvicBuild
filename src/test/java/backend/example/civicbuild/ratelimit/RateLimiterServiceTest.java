@@ -80,7 +80,8 @@ class RateLimiterServiceTest {
                 new AppProperties.PasswordReset(Duration.ofMinutes(30)),
                 new AppProperties.RateLimit(false, 5, Duration.ofMinutes(15)),
                 new AppProperties.Email("re_test", "test@example.com", "http://localhost/reset"),
-                TestAppProperties.TEST_GOOGLE);
+                TestAppProperties.TEST_GOOGLE,
+                TestAppProperties.TEST_PAYSTACK);
         RateLimiterService disabledLimiter = new RateLimiterService(redisTemplate, disabled);
 
         disabledLimiter.checkAndConsume("login", "127.0.0.1", "user@example.com");

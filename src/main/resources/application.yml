@@ -60,6 +60,12 @@ app:
   google:
     # Audience check for Google ID tokens. Client secret is NOT used for ID-token verification.
     web-client-id: ${GOOGLE_WEB_CLIENT_ID}
+  paystack:
+    secret-key: ${PAYSTACK_SECRET_KEY}
+    public-key: ${PAYSTACK_PUBLIC_KEY}
+    callback-url: ${PAYSTACK_CALLBACK_URL:https://civicbuild-production.up.railway.app/api/payments/paystack/callback}
+    webhook-url: ${PAYSTACK_WEBHOOK_URL:https://civicbuild-production.up.railway.app/api/payments/webhook}
+    webhook-ip-check-enabled: ${PAYSTACK_WEBHOOK_IP_CHECK:false}
 
 management:
   endpoints:

@@ -1,0 +1,70 @@
+# CivicBuild local Docker stack.
+#
+# Full stack (Postgres + Redis + API):
+#   docker compose up --build
+#
+# Infra only (run API locally with mvnw spring-boot:run):
+#   docker compose up -d postgres redis
+#
+# Integration tests (requires Docker Desktop):
+#   docker compose up -d postgres redis
+#   .\mvnw.cmd test
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: civicbuild-postgres
+    environment:
+      POSTGRES_USER: civicbuild
+      POSTGRES_PASSWORD: civicbuild
+      POSTGRES_DB: civicbuild
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U civicbuild -d civicbuild"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: civicbuild-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: civicbuild-api
+    ports:
+      - "${SERVER_PORT:-8081}:8081"
+    env_file:
+      - .env
+    environment:
+      SERVER_PORT: 8081
+      NEON_DATABASE_URL: postgresql://civicbuild:civicbuild@postgres:5432/civicbuild
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+
+volumes:
+  postgres_data:
