@@ -60,6 +60,10 @@ public abstract class IntegrationTestBase {
         return "http://localhost:" + port + "/api/orders" + path;
     }
 
+    protected String accountUrl(String path) {
+        return "http://localhost:" + port + "/api/account" + path;
+    }
+
     protected String paymentUrl(String path) {
         return "http://localhost:" + port + "/api/payments" + path;
     }

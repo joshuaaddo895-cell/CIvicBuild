@@ -38,6 +38,9 @@ public class PaymentEvent {
     @Column(name = "event_type", nullable = false, length = 50)
     private String eventType;
 
+    @Column(name = "order_id")
+    private UUID orderId;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "raw_payload", nullable = false, columnDefinition = "jsonb")
     private String rawPayload;
