@@ -5,30 +5,39 @@ import backend.example.civicbuild.order.dto.OrderItemResponse;
 import backend.example.civicbuild.order.dto.OrderResponse;
 import backend.example.civicbuild.order.entity.Order;
 import backend.example.civicbuild.order.entity.OrderItem;
+import backend.example.civicbuild.order.entity.OrderStatus;
 import backend.example.civicbuild.order.exception.OrderNotFoundException;
 import backend.example.civicbuild.order.repository.OrderRepository;
 import backend.example.civicbuild.payment.client.PaystackClient;
 import backend.example.civicbuild.payment.client.PaystackVerifyResponse;
 import backend.example.civicbuild.payment.service.PaymentReconciliationService;
+import backend.example.civicbuild.payment.util.PaystackTransactionStatus;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class OrderService {
 
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+
     private final OrderRepository orderRepository;
     private final PaystackClient paystackClient;
     private final PaymentReconciliationService reconciliationService;
+    private final OrderStateMachine stateMachine;
 
     public OrderService(
             OrderRepository orderRepository,
             PaystackClient paystackClient,
-            PaymentReconciliationService reconciliationService) {
+            PaymentReconciliationService reconciliationService,
+            OrderStateMachine stateMachine) {
         this.orderRepository = orderRepository;
         this.paystackClient = paystackClient;
         this.reconciliationService = reconciliationService;
+        this.stateMachine = stateMachine;
     }
 
     @Transactional(readOnly = true)
@@ -54,10 +63,28 @@ public class OrderService {
             throw new OrderNotFoundException();
         }
 
+        if (order.getStatus() == OrderStatus.PAID) {
+            return toResponse(order);
+        }
+
         PaystackVerifyResponse verify = paystackClient.verifyTransaction(order.getPaystackReference());
-        if (verify.data() != null && "success".equalsIgnoreCase(verify.data().status())) {
+        String transactionStatus =
+                verify.data() != null ? verify.data().status() : null;
+
+        log.info(
+                "Paystack verify for order {} reference {} => transactionStatus={}",
+                order.getId(),
+                order.getPaystackReference(),
+                transactionStatus);
+
+        if (PaystackTransactionStatus.isSuccess(transactionStatus)) {
             reconciliationService.reconcileSuccessfulPayment(
                     order.getPaystackReference(), verify.data().amount(), "verify", true);
+        } else if (PaystackTransactionStatus.isPending(transactionStatus)) {
+            if (order.getStatus() == OrderStatus.PENDING) {
+                stateMachine.transition(order, OrderStatus.PROCESSING);
+                orderRepository.save(order);
+            }
         } else {
             reconciliationService.reconcileFailedPayment(order.getPaystackReference(), "verify");
         }

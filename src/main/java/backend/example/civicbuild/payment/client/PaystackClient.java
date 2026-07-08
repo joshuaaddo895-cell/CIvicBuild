@@ -104,19 +104,30 @@ public class PaystackClient {
                     .retrieve()
                     .body(String.class);
 
-            log.debug("Paystack verify raw response for reference {}: {}", reference, rawResponse);
+            log.info("Paystack verify raw response for reference {}: {}", reference, rawResponse);
 
             if (!StringUtils.hasText(rawResponse)) {
                 throw new PaystackApiException("Empty Paystack verify response");
             }
 
             PaystackVerifyResponse response = objectMapper.readValue(rawResponse, PaystackVerifyResponse.class);
-            if (response == null) {
-                throw new PaystackApiException("Empty Paystack verify response");
+            if (response == null || !response.status()) {
+                String message = response == null ? "Empty Paystack verify response" : response.message();
+                log.error("Paystack verify rejected for reference {}: {}", reference, message);
+                throw new PaystackApiException("Payment verification failed");
             }
             return response;
         } catch (PaystackApiException ex) {
             throw ex;
+        } catch (RestClientResponseException ex) {
+            String responseBody = ex.getResponseBodyAsString(StandardCharsets.UTF_8);
+            log.error(
+                    "Paystack verify HTTP {} for reference {}: {}",
+                    ex.getStatusCode().value(),
+                    reference,
+                    responseBody,
+                    ex);
+            throw new PaystackApiException("Payment verification unavailable");
         } catch (RestClientException | com.fasterxml.jackson.core.JsonProcessingException ex) {
             log.error("Paystack verify request failed for reference {}", reference, ex);
             throw new PaystackApiException("Payment verification unavailable");
