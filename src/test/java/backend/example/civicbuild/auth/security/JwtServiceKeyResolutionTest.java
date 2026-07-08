@@ -32,6 +32,6 @@ class JwtServiceKeyResolutionTest {
     void resolveSigningKeyBytes_rejectsShortSecret() {
         assertThatThrownBy(() -> JwtService.resolveSigningKeyBytes("too-short"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("256 bits");
+                .hasMessageContaining("JWT secret is missing or invalid");
     }
 }
