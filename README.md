@@ -173,6 +173,9 @@ Fill in the values in `.env`:
 | `RESEND_API_KEY` | Resend API key for transactional email |
 | `JWT_SECRET` | HS256 signing secret, min 32 bytes (`openssl rand -base64 64`) |
 | `GOOGLE_WEB_CLIENT_ID` | Google OAuth Web client ID (ID-token audience verification) |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
+| `CLOUDINARY_API_KEY` | Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | Cloudinary API secret (never commit) |
 | `SERVER_PORT` | HTTP port (default `8081` — frontend typically uses 8080) |
 
 > `.env` is git-ignored. Never commit secrets.
@@ -397,6 +400,18 @@ See `.env.example` for the full list. Optional overrides:
 | `DELIVERY_PROVIDER` | Selected during onboarding |
 
 Verification status: `UNVERIFIED` → `PENDING` → `VERIFIED` / `REJECTED`
+
+**File uploads (Cloudinary)**
+
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `POST /api/verification/upload-document` | Bearer JWT | Private verification docs (`multipart/form-data`: `file` + `documentType`) |
+| `GET /api/verification/{userId}/document-url?documentType=` | Bearer JWT (owner or `ADMIN`) | Short-lived signed URL for private docs |
+| `POST /api/agency/portfolio/upload` | Bearer JWT (`CONSTRUCTION_AGENCY`) | Public portfolio images (`multipart/form-data`: `file`) |
+
+`documentType` values: `BUSINESS_REGISTRATION`, `GOVERNMENT_ID`, `PROFESSIONAL_LICENSE`. Max file size: **5MB**.
+
+> **Follow-up:** Admin approve/reject verification endpoint (`PENDING` → `VERIFIED`/`REJECTED`) is still needed — separate from document viewing.
 
 ---
 

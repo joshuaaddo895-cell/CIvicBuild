@@ -124,6 +124,13 @@
 			<version>2.7.2</version>
 		</dependency>
 
+		<!-- Cloudinary file storage (Apache HTTP5 transport for SDK v2.x) -->
+		<dependency>
+			<groupId>com.cloudinary</groupId>
+			<artifactId>cloudinary-http5</artifactId>
+			<version>2.4.0</version>
+		</dependency>
+
 		<!-- Load env vars from a git-ignored .env file -->
 		<dependency>
 			<groupId>me.paulschwarz</groupId>

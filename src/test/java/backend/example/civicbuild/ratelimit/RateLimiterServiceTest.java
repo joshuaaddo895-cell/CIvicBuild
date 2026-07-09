@@ -81,6 +81,7 @@ class RateLimiterServiceTest {
                 new AppProperties.RateLimit(false, 5, Duration.ofMinutes(15)),
                 new AppProperties.Email("re_test", "test@example.com", "http://localhost/reset"),
                 TestAppProperties.TEST_GOOGLE,
+                TestAppProperties.TEST_CLOUDINARY,
                 TestAppProperties.TEST_PAYSTACK);
         RateLimiterService disabledLimiter = new RateLimiterService(redisTemplate, disabled);
 

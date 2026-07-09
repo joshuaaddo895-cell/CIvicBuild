@@ -5,6 +5,11 @@ spring:
   application:
     name: civicbuild
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
   autoconfigure:
     exclude:
       # We use JWT auth only — disable the default in-memory user + login form.
@@ -60,6 +65,10 @@ app:
   google:
     # Audience check for Google ID tokens. Client secret is NOT used for ID-token verification.
     web-client-id: ${GOOGLE_WEB_CLIENT_ID}
+  cloudinary:
+    cloud-name: ${CLOUDINARY_CLOUD_NAME}
+    api-key: ${CLOUDINARY_API_KEY}
+    api-secret: ${CLOUDINARY_API_SECRET}
   paystack:
     secret-key: ${PAYSTACK_SECRET_KEY}
     public-key: ${PAYSTACK_PUBLIC_KEY}

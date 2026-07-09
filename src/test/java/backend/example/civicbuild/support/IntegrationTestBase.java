@@ -72,6 +72,20 @@ public abstract class IntegrationTestBase {
         return "http://localhost:" + port + "/api/payments" + path;
     }
 
+    protected String verificationUrl(String path) {
+        return "http://localhost:" + port + "/api/verification" + path;
+    }
+
+    protected String agencyPortfolioUrl(String path) {
+        return "http://localhost:" + port + "/api/agency/portfolio" + path;
+    }
+
+    protected HttpHeaders bearerHeaders(String accessToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        return headers;
+    }
+
     protected HttpHeaders jsonHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

@@ -21,6 +21,7 @@ public record AppProperties(
         RateLimit rateLimit,
         Email email,
         Google google,
+        Cloudinary cloudinary,
         Paystack paystack) {
 
     public record NotNullJwt(
@@ -43,6 +44,12 @@ public record AppProperties(
 
     /** Google OAuth — only webClientId is required for ID-token verification. */
     public record Google(@NotBlank String webClientId) {}
+
+    /** Cloudinary credentials — loaded from env; never logged. */
+    public record Cloudinary(
+            @NotBlank String cloudName,
+            @NotBlank String apiKey,
+            @NotBlank String apiSecret) {}
 
     public record Paystack(
             @NotBlank String secretKey,
