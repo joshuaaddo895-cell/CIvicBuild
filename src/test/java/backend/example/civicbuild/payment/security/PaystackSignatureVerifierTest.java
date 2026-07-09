@@ -42,6 +42,7 @@ class PaystackSignatureVerifierTest {
                 TestAppProperties.defaults().rateLimit(),
                 TestAppProperties.defaults().email(),
                 TestAppProperties.TEST_GOOGLE,
+                TestAppProperties.TEST_CLOUDINARY,
                 new AppProperties.Paystack(
                         "sk_test_different_secret",
                         "pk_test",

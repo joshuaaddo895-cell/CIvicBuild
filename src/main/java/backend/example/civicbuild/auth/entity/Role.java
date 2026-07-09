@@ -8,5 +8,6 @@ package backend.example.civicbuild.auth.entity;
 public enum Role {
     CUSTOMER,
     CONSTRUCTION_AGENCY,
-    DELIVERY_PROVIDER
+    DELIVERY_PROVIDER,
+    ADMIN
 }

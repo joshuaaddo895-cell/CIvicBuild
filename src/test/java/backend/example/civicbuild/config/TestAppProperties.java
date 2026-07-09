@@ -18,6 +18,9 @@ public final class TestAppProperties {
             "http://localhost:8081/api/payments/webhook",
             false);
 
+    public static final AppProperties.Cloudinary TEST_CLOUDINARY =
+            new AppProperties.Cloudinary("test-cloud", "test-api-key", "test-api-secret");
+
     public static AppProperties defaults() {
         return new AppProperties(
                 new AppProperties.NotNullJwt(
@@ -29,6 +32,7 @@ public final class TestAppProperties {
                 new AppProperties.RateLimit(true, 5, Duration.ofMinutes(15)),
                 new AppProperties.Email("re_test", "test@example.com", "http://localhost/reset"),
                 TEST_GOOGLE,
+                TEST_CLOUDINARY,
                 TEST_PAYSTACK);
     }
 }
