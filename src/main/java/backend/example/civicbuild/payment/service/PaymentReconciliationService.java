@@ -4,6 +4,7 @@ import backend.example.civicbuild.order.entity.Order;
 import backend.example.civicbuild.order.entity.OrderStatus;
 import backend.example.civicbuild.order.repository.OrderRepository;
 import backend.example.civicbuild.order.service.OrderStateMachine;
+import backend.example.civicbuild.order.service.StockService;
 import backend.example.civicbuild.auth.entity.User;
 import backend.example.civicbuild.auth.repository.UserRepository;
 import backend.example.civicbuild.email.EmailRecipient;
@@ -26,16 +27,19 @@ public class PaymentReconciliationService {
     private final OrderStateMachine stateMachine;
     private final UserRepository userRepository;
     private final EmailPublisher emailPublisher;
+    private final StockService stockService;
 
     public PaymentReconciliationService(
             OrderRepository orderRepository,
             OrderStateMachine stateMachine,
             UserRepository userRepository,
-            EmailPublisher emailPublisher) {
+            EmailPublisher emailPublisher,
+            StockService stockService) {
         this.orderRepository = orderRepository;
         this.stateMachine = stateMachine;
         this.userRepository = userRepository;
         this.emailPublisher = emailPublisher;
+        this.stockService = stockService;
     }
 
     @Transactional
@@ -80,6 +84,7 @@ public class PaymentReconciliationService {
         }
         stateMachine.transition(order, OrderStatus.PAID);
         orderRepository.save(order);
+        orderRepository.findByIdWithItems(order.getId()).ifPresent(stockService::decrementForPaidOrder);
         log.info("Order {} marked PAID via {}", order.getId(), source);
         sendPaymentConfirmationEmail(order.getId());
     }

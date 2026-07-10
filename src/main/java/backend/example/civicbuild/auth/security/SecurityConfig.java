@@ -22,6 +22,20 @@ public class SecurityConfig {
     // BCrypt strength 12: strong work factor, still well under typical request-latency budgets.
     private static final int BCRYPT_STRENGTH = 12;
 
+    private static final String[] PUBLIC_GET_ENDPOINTS = {
+            "/api/categories",
+            "/api/categories/**",
+            "/api/suppliers",
+            "/api/suppliers/**",
+            "/api/products",
+            "/api/products/**",
+            "/api/agencies",
+            "/api/agencies/*/posts",
+            "/api/agencies/*/portfolio",
+            "/api/reviews",
+            "/api/reviews/summary"
+    };
+
     private static final String[] PUBLIC_ENDPOINTS = {
             "/api/auth/**",
             "/api/health",
@@ -58,6 +72,9 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/change-password").authenticated()
+                        .requestMatchers("/api/agencies/me", "/api/agencies/me/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/agencies/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex

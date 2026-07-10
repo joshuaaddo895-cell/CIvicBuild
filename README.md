@@ -399,7 +399,7 @@ See `.env.example` for the full list. Optional overrides:
 | `CONSTRUCTION_AGENCY` | Selected during onboarding |
 | `DELIVERY_PROVIDER` | Selected during onboarding |
 
-Verification status: `UNVERIFIED` → `PENDING` → `VERIFIED` / `REJECTED`
+Verification status: `UNVERIFIED` → `PENDING` → `VERIFIED` / `REJECTED` (cosmetic only — does not block access)
 
 **File uploads (Cloudinary)**
 
@@ -408,10 +408,34 @@ Verification status: `UNVERIFIED` → `PENDING` → `VERIFIED` / `REJECTED`
 | `POST /api/verification/upload-document` | Bearer JWT | Private verification docs (`multipart/form-data`: `file` + `documentType`) |
 | `GET /api/verification/{userId}/document-url?documentType=` | Bearer JWT (owner or `ADMIN`) | Short-lived signed URL for private docs |
 | `POST /api/agency/portfolio/upload` | Bearer JWT (`CONSTRUCTION_AGENCY`) | Public portfolio images (`multipart/form-data`: `file`) |
+| `POST /api/users/me/avatar` | Bearer JWT | Profile photo upload → `{ profilePictureUrl }` |
+| `POST /api/agencies/me/products/upload-image` | Bearer JWT (`CONSTRUCTION_AGENCY`) | Product image upload → `{ imageUrl }` |
 
 `documentType` values: `BUSINESS_REGISTRATION`, `GOVERNMENT_ID`, `PROFESSIONAL_LICENSE`. Max file size: **5MB**.
 
-> **Follow-up:** Admin approve/reject verification endpoint (`PENDING` → `VERIFIED`/`REJECTED`) is still needed — separate from document viewing.
+---
+
+## Marketplace & onboarding APIs (new)
+
+**Onboarding** — `GET/PATCH /api/users/me/onboarding`, `POST /api/users/me/onboarding/complete`
+
+**Agencies** — `POST /api/agencies`, `GET/PATCH /api/agencies/me`, `GET /api/agencies`, `GET /api/agencies/{id}`
+
+**Agency content** — posts (`/api/agencies/me/posts`), portfolio list/delete, personnel approve/reject
+
+**Catalog (public read)** — `GET /api/categories`, `GET /api/suppliers`, `GET /api/products`
+
+**Agency products** — `POST/PATCH/DELETE /api/agencies/me/products`
+
+**Delivery** — `POST /api/delivery-providers/setup`, `GET/PATCH /api/delivery-providers/me`, jobs at `/api/delivery-providers/me/jobs`
+
+**Social** — saved items (`/api/users/me/saved`), reviews (`/api/reviews`), messages (`/api/messages`), notifications (`/api/notifications`)
+
+**Admin** — `GET /api/admin/verification/pending`, `POST /api/admin/verification/{userId}/approve|reject`
+
+**Agency orders** — `GET /api/agencies/me/orders`, `PATCH /api/agencies/me/orders/{id}/status`
+
+Checkout accepts optional `productId` per item; stock decrements on successful Paystack payment. Seed catalog data ships in migration `V9__seed_catalog.sql`.
 
 ---
 

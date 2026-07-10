@@ -53,4 +53,10 @@ public class OrderItem {
 
     @Column(name = "line_total", nullable = false, precision = 10, scale = 2)
     private BigDecimal lineTotal;
+
+    @Column(name = "product_id")
+    private UUID productId;
+
+    @Column(name = "agency_id")
+    private UUID agencyId;
 }

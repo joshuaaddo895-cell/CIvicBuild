@@ -1,6 +1,5 @@
 package backend.example.civicbuild.storage;
 
-import java.io.InputStream;
 import java.time.Duration;
 
 /**
@@ -8,9 +7,11 @@ import java.time.Duration;
  */
 public interface StorageService {
 
-    StoredFile uploadPrivateDocument(InputStream data, String publicId, DetectedFileType fileType);
+    StoredFile uploadPrivateDocument(byte[] data, String publicId, DetectedFileType fileType);
 
-    StoredFile uploadPublicImage(InputStream data, String publicId, DetectedFileType fileType);
+    StoredFile uploadPublicImage(byte[] data, String publicId, DetectedFileType fileType);
 
     String generateSignedPrivateUrl(String publicId, String resourceType, String format, Duration ttl);
+
+    String generatePublicDeliveryUrl(String publicId, String resourceType);
 }

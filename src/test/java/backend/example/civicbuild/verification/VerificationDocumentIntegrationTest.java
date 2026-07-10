@@ -91,6 +91,25 @@ class VerificationDocumentIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void uploadDocument_allowedForAnyAuthenticatedRole_includingCustomer() throws Exception {
+        String email = uniqueEmail();
+        register(email);
+        User user = userRepository.findByEmail(email).orElseThrow();
+        assertThat(user.getRole()).isEqualTo(Role.CUSTOMER);
+
+        when(storageService.uploadPrivateDocument(any(), any(), any()))
+                .thenReturn(new StoredFile("verification-docs/" + user.getId() + "/stored-id", "image", "png", null));
+
+        String accessToken = login(email);
+        ResponseEntity<String> response = rest.postForEntity(
+                verificationUrl("/upload-document?documentType=GOVERNMENT_ID"),
+                multipartEntity(accessToken, PNG_BYTES, "id.png"),
+                String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
     void getDocumentUrl_forbiddenForOtherUser() throws Exception {
         String ownerEmail = uniqueEmail();
         String otherEmail = uniqueEmail();

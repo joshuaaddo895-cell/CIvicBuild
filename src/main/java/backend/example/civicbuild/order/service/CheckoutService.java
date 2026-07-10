@@ -21,23 +21,29 @@ public class CheckoutService {
 
     private final OrderRepository orderRepository;
     private final OrderTotalCalculator totalCalculator;
+    private final CheckoutItemResolver checkoutItemResolver;
     private final OrderStateMachine stateMachine;
     private final PaystackClient paystackClient;
 
     public CheckoutService(
             OrderRepository orderRepository,
             OrderTotalCalculator totalCalculator,
+            CheckoutItemResolver checkoutItemResolver,
             OrderStateMachine stateMachine,
             PaystackClient paystackClient) {
         this.orderRepository = orderRepository;
         this.totalCalculator = totalCalculator;
+        this.checkoutItemResolver = checkoutItemResolver;
         this.stateMachine = stateMachine;
         this.paystackClient = paystackClient;
     }
 
     @Transactional
     public CheckoutResponse checkout(AuthenticatedUser user, CheckoutRequest request) {
-        BigDecimal subtotal = totalCalculator.subtotal(request.items());
+        var orderItems = request.items().stream().map(checkoutItemResolver::resolve).toList();
+        BigDecimal subtotal = orderItems.stream()
+                .map(item -> totalCalculator.lineTotal(item.getUnitPrice(), item.getQuantity()))
+                .reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
         BigDecimal total = totalCalculator.total(subtotal);
         String reference = REFERENCE_PREFIX + UUID.randomUUID();
 
@@ -54,9 +60,7 @@ public class CheckoutService {
                 .paystackReference(reference)
                 .build();
 
-        request.items().stream()
-                .map(totalCalculator::toOrderItem)
-                .forEach(order::addItem);
+        orderItems.forEach(order::addItem);
 
         orderRepository.saveAndFlush(order);
 
@@ -69,7 +73,9 @@ public class CheckoutService {
             return new CheckoutResponse(
                     order.getId(),
                     reference,
-                    init.data().authorizationUrl());
+                    reference,
+                    init.data().authorizationUrl(),
+                    total);
         } catch (RuntimeException ex) {
             stateMachine.transition(order, OrderStatus.FAILED);
             orderRepository.save(order);

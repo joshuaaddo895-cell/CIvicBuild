@@ -30,6 +30,7 @@ public class OrderTotalCalculator {
     public OrderItem toOrderItem(CheckoutRequest.CheckoutItemRequest item) {
         BigDecimal lineTotal = lineTotal(item.unitPrice(), item.quantity());
         return OrderItem.builder()
+                .productId(item.productId())
                 .productName(item.productName())
                 .supplierName(item.supplierName())
                 .unitPrice(item.unitPrice().setScale(MONEY_SCALE, ROUNDING))

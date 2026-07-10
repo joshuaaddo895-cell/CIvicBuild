@@ -21,4 +21,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     @Query("SELECT o FROM Order o LEFT JOIN FETCH o.items WHERE o.id = :id")
     Optional<Order> findByIdWithItems(@Param("id") UUID id);
+
+    @Query("SELECT DISTINCT o FROM Order o JOIN o.items i WHERE i.agencyId = :agencyId ORDER BY o.createdAt DESC")
+    List<Order> findDistinctByAgencyId(@Param("agencyId") UUID agencyId);
 }
