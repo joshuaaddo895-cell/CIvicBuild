@@ -32,6 +32,7 @@ public class SecurityConfig {
             "/api/agencies",
             "/api/agencies/*/posts",
             "/api/agencies/*/portfolio",
+            "/api/agencies/*/personnel",
             "/api/reviews",
             "/api/reviews/summary"
     };
