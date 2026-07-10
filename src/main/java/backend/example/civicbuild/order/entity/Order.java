@@ -72,6 +72,11 @@ public class Order {
     @Column(name = "paystack_reference", unique = true, length = 100)
     private String paystackReference;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fulfillment_status", nullable = false, length = 20)
+    @Builder.Default
+    private FulfillmentStatus fulfillmentStatus = FulfillmentStatus.pending;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default
     private List<OrderItem> items = new ArrayList<>();

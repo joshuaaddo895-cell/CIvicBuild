@@ -15,9 +15,9 @@ class OrderTotalCalculatorTest {
     void calculatesFractionalQuantityTotals() {
         List<CheckoutRequest.CheckoutItemRequest> items = List.of(
                 new CheckoutRequest.CheckoutItemRequest(
-                        "Cement", "BuildCo", new BigDecimal("120.50"), new BigDecimal("2.5"), "tons"),
+                        null, "Cement", "BuildCo", new BigDecimal("120.50"), new BigDecimal("2.5"), "tons"),
                 new CheckoutRequest.CheckoutItemRequest(
-                        "Sand", "SandCo", new BigDecimal("80.00"), new BigDecimal("1"), "m3"));
+                        null, "Sand", "SandCo", new BigDecimal("80.00"), new BigDecimal("1"), "m3"));
 
         BigDecimal subtotal = calculator.subtotal(items);
         assertThat(subtotal).isEqualByComparingTo("381.25");

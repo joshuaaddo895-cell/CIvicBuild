@@ -2,6 +2,7 @@ package backend.example.civicbuild.verification.service;
 
 import backend.example.civicbuild.auth.entity.Role;
 import backend.example.civicbuild.auth.entity.User;
+import backend.example.civicbuild.auth.entity.VerificationStatus;
 import backend.example.civicbuild.auth.exception.UserNotFoundException;
 import backend.example.civicbuild.auth.repository.UserRepository;
 import backend.example.civicbuild.auth.security.AuthenticatedUser;
@@ -62,7 +63,6 @@ public class VerificationDocumentService {
         User user = userRepository
                 .findById(actor.id())
                 .orElseThrow(UserNotFoundException::new);
-        assertVerificationRole(user.getRole());
 
         String publicId = fileUploadValidator.verificationPublicId(user.getId());
         StoredFile stored = uploadToCloudinary(file, publicId, fileType);
@@ -71,6 +71,11 @@ public class VerificationDocumentService {
                 .findByUserIdAndDocumentType(user.getId(), documentType)
                 .map(existing -> replaceDocument(existing, stored))
                 .orElseGet(() -> createDocument(user, documentType, stored));
+
+        if (user.getVerificationStatus() == VerificationStatus.UNVERIFIED) {
+            user.setVerificationStatus(VerificationStatus.PENDING);
+            userRepository.save(user);
+        }
 
         log.info(
                 "Stored verification document id={} type={} for userId={}",
@@ -105,7 +110,7 @@ public class VerificationDocumentService {
 
     private StoredFile uploadToCloudinary(MultipartFile file, String publicId, DetectedFileType fileType) {
         try {
-            return storageService.uploadPrivateDocument(file.getInputStream(), publicId, fileType);
+            return storageService.uploadPrivateDocument(file.getBytes(), publicId, fileType);
         } catch (IOException e) {
             throw new InvalidFileUploadException("Unable to read uploaded file");
         }
@@ -132,12 +137,6 @@ public class VerificationDocumentService {
                 .format(stored.format())
                 .createdAt(existing.getCreatedAt())
                 .build());
-    }
-
-    private void assertVerificationRole(Role role) {
-        if (role != Role.CONSTRUCTION_AGENCY && role != Role.DELIVERY_PROVIDER) {
-            throw new DocumentAccessDeniedException();
-        }
     }
 
     private void assertCanViewDocuments(AuthenticatedUser actor, UUID userId) {
