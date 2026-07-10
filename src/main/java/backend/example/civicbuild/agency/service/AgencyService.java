@@ -20,6 +20,7 @@ import backend.example.civicbuild.auth.entity.User;
 import backend.example.civicbuild.auth.exception.UserNotFoundException;
 import backend.example.civicbuild.auth.repository.UserRepository;
 import backend.example.civicbuild.auth.security.AuthenticatedUser;
+import backend.example.civicbuild.auth.security.UserRoleResolver;
 import backend.example.civicbuild.common.dto.PageResponse;
 import backend.example.civicbuild.common.web.PaginationSupport;
 import backend.example.civicbuild.common.web.SearchSupport;
@@ -45,6 +46,7 @@ public class AgencyService {
     private final UserRepository userRepository;
     private final DeliveryProviderRepository deliveryProviderRepository;
     private final NotificationService notificationService;
+    private final UserRoleResolver userRoleResolver;
     private final Clock clock;
 
     public AgencyService(
@@ -53,12 +55,14 @@ public class AgencyService {
             UserRepository userRepository,
             DeliveryProviderRepository deliveryProviderRepository,
             NotificationService notificationService,
+            UserRoleResolver userRoleResolver,
             Clock clock) {
         this.agencyRepository = agencyRepository;
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.deliveryProviderRepository = deliveryProviderRepository;
         this.notificationService = notificationService;
+        this.userRoleResolver = userRoleResolver;
         this.clock = clock;
     }
 
@@ -229,7 +233,7 @@ public class AgencyService {
     }
 
     private void requireConstructionRole(AuthenticatedUser actor) {
-        if (actor.role() != Role.CONSTRUCTION_AGENCY && actor.role() != Role.ADMIN) {
+        if (!userRoleResolver.hasAnyRole(actor, Role.CONSTRUCTION_AGENCY, Role.ADMIN)) {
             throw new AgencyAccessDeniedException();
         }
     }
