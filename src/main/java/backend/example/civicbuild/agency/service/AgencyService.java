@@ -174,7 +174,20 @@ public class AgencyService {
     @Transactional(readOnly = true)
     public List<PersonnelResponse> listPersonnel(AuthenticatedUser actor) {
         Agency agency = requireOwnedAgency(actor);
-        return deliveryProviderRepository.findByConstructionAgencyIdOrderBySubmittedAtDesc(agency.getId()).stream()
+        return listPersonnelForAgency(agency.getId(), false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PersonnelResponse> listPublicPersonnel(UUID agencyId) {
+        if (!agencyRepository.existsById(agencyId)) {
+            throw new AgencyNotFoundException();
+        }
+        return listPersonnelForAgency(agencyId, true);
+    }
+
+    private List<PersonnelResponse> listPersonnelForAgency(UUID agencyId, boolean approvedOnly) {
+        return deliveryProviderRepository.findByConstructionAgencyIdOrderBySubmittedAtDesc(agencyId).stream()
+                .filter(dp -> !approvedOnly || dp.getApprovalStatus() == DeliveryApprovalStatus.approved)
                 .map(this::toPersonnel)
                 .toList();
     }

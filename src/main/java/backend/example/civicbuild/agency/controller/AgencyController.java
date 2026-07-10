@@ -130,6 +130,12 @@ public class AgencyController {
         return ResponseEntity.ok(ApiResponse.ok(agencyService.listPersonnel(user)));
     }
 
+    @GetMapping("/{agencyId}/personnel")
+    public ResponseEntity<ApiResponse<List<PersonnelResponse>>> listAgencyPersonnel(
+            @PathVariable UUID agencyId) {
+        return ResponseEntity.ok(ApiResponse.ok(agencyService.listPublicPersonnel(agencyId)));
+    }
+
     @PostMapping("/me/personnel/{personnelId}/approve")
     public ResponseEntity<ApiResponse<PersonnelResponse>> approvePersonnel(
             @AuthenticationPrincipal AuthenticatedUser user, @PathVariable UUID personnelId) {
