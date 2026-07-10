@@ -2,7 +2,7 @@
 
 Spring Boot REST API for **CivicBuild** — a construction marketplace platform connecting customers, construction agencies, and delivery providers.
 
-This repository contains the backend: authentication, Google Sign-In, orders, and Paystack payments.
+This repository contains the backend: authentication, Google Sign-In, onboarding, marketplace catalog, agencies, orders, Paystack payments, messaging, and Cloudinary file storage.
 
 **Production API:** https://civicbuild-production.up.railway.app
 
@@ -245,12 +245,83 @@ All responses use the standard envelope:
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/orders/checkout` | JWT | Create order + Paystack initialize → `authorizationUrl` |
+| `POST` | `/api/orders/checkout` | JWT | Create order + Paystack initialize → `authorizationUrl`, `orderNumber`, `totalAmount` |
 | `POST` | `/api/orders/{id}/verify` | JWT | Fallback Paystack verify (webhook is primary) |
 | `GET` | `/api/orders/{id}` | JWT | Get order (owner only) |
 | `GET` | `/api/orders` | JWT | List my orders |
 | `POST` | `/api/payments/webhook` | Public (signed) | Paystack webhook |
 | `GET` | `/api/payments/paystack/callback` | Public | Post-checkout redirect (not confirmation) |
+
+### Users & profile
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/users/me` | JWT | Current user profile |
+| `PATCH` | `/api/users/me` | JWT | Update `fullName`, `profilePictureUrl` |
+| `POST` | `/api/users/me/avatar` | JWT | Upload profile photo (multipart `file`) |
+| `DELETE` | `/api/account` | JWT | Delete account + cascade |
+
+### Onboarding
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/users/me/onboarding` | JWT | Account type, completion, `managedAgencyId`, delivery profile |
+| `PATCH` | `/api/users/me/onboarding` | JWT | Set `accountType`: `customer` \| `construction` \| `delivery` |
+| `POST` | `/api/users/me/onboarding/complete` | JWT | Mark onboarding complete |
+
+### Catalog (public read)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/categories` | Public | Product categories (`cement`, `blocks`, …) |
+| `GET` | `/api/suppliers` | Public | Supplier directory (`?q=&category=&page=&limit=`) |
+| `GET` | `/api/suppliers/{id}` | Public | Supplier detail |
+| `GET` | `/api/products` | Public | Product listing (`?q=&category=&supplierId=&agencyId=`) |
+| `GET` | `/api/products/{id}` | Public | Product detail |
+
+### Agencies
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/agencies` | JWT | Create agency (construction user) |
+| `GET` | `/api/agencies/me` | JWT | My agency profile |
+| `PATCH` | `/api/agencies/me` | JWT | Update agency |
+| `GET` | `/api/agencies` | Public | Agency directory |
+| `GET` | `/api/agencies/{id}` | Public | Agency public detail |
+| `POST` | `/api/agencies/me/products` | JWT | Create agency product |
+| `PATCH` | `/api/agencies/me/products/{id}` | JWT | Update product |
+| `DELETE` | `/api/agencies/me/products/{id}` | JWT | Delete product |
+| `POST` | `/api/agencies/me/products/upload-image` | JWT | Product image upload |
+| `GET` | `/api/agencies/me/posts` | JWT | My posts |
+| `POST` | `/api/agencies/me/posts` | JWT | Create post |
+| `GET` | `/api/agencies/{id}/posts` | Public | Agency posts |
+| `GET` | `/api/agencies/me/portfolio` | JWT | My portfolio images |
+| `GET` | `/api/agencies/{id}/portfolio` | Public | Agency portfolio |
+| `GET` | `/api/agencies/me/personnel` | JWT | Delivery personnel requests |
+| `GET` | `/api/agencies/me/orders` | JWT | Orders containing my products |
+
+### Delivery providers
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/delivery-providers/setup` | JWT | Create/update delivery profile |
+| `GET` | `/api/delivery-providers/me` | JWT | My delivery profile |
+| `PATCH` | `/api/delivery-providers/me` | JWT | Update profile |
+| `DELETE` | `/api/delivery-providers/me/association` | JWT | Leave agency |
+| `GET` | `/api/delivery-providers/me/jobs` | JWT | Assigned delivery jobs |
+
+### Verification, saved, social
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/verification/upload-document` | JWT | Upload verification doc |
+| `GET` | `/api/verification/{userId}/document-url` | JWT | Signed private doc URL |
+| `GET` | `/api/users/me/saved` | JWT | Saved products/suppliers/agencies |
+| `POST` | `/api/users/me/saved` | JWT | Save item |
+| `GET` | `/api/reviews` | Public | Reviews by subject |
+| `GET` | `/api/messages/threads` | JWT | Message threads |
+| `GET` | `/api/notifications` | JWT | In-app notifications |
+| `GET` | `/api/admin/verification/pending` | JWT (`ADMIN`) | Pending verifications |
 
 ---
 
@@ -279,7 +350,7 @@ All responses use the standard envelope:
 
 Returns the same `AuthResponse` as login. Google-only accounts cannot use manual login (400). See [docs/GOOGLE_SIGNIN_FRONTEND.md](docs/GOOGLE_SIGNIN_FRONTEND.md) for Expo setup.
 
-Returns:
+**Auth response** (login / google / refresh):
 
 ```json
 {
@@ -299,20 +370,87 @@ Returns:
 Authorization: Bearer <accessToken>
 ```
 
+**Onboarding** `PATCH /api/users/me/onboarding`
+
+```json
+{ "accountType": "construction" }
+```
+
+Values: `customer`, `construction`, `delivery`.
+
+**Create agency** `POST /api/agencies`
+
+```json
+{
+  "name": "BuildStrong Ltd",
+  "category": "general-contracting",
+  "tagline": "Quality construction",
+  "services": ["renovation", "new builds"]
+}
+```
+
+**Checkout** `POST /api/orders/checkout`
+
+```json
+{
+  "items": [
+    {
+      "productId": "b2000001-0000-4000-8000-000000000001",
+      "productName": "Dangote Cement 50kg",
+      "supplierName": "BuildMart Ghana",
+      "unitPrice": 88,
+      "quantity": 2,
+      "unit": "per bag"
+    }
+  ],
+  "delivery": {
+    "address": "12 Market Road",
+    "city": "Accra",
+    "region": "Greater Accra",
+    "phoneNumber": "+233201234567"
+  }
+}
+```
+
+`productId` is optional (backward compatible). When provided, server validates price/stock from catalog.
+
+Returns:
+
+```json
+{
+  "success": true,
+  "data": {
+    "orderId": "<uuid>",
+    "orderNumber": "CB-<uuid>",
+    "paystackReference": "CB-<uuid>",
+    "authorizationUrl": "https://checkout.paystack.com/...",
+    "totalAmount": 176
+  }
+}
+```
+
 ---
 
 ## Postman Collection
 
-Import `postman/CivicBuild-Auth-API.postman_collection.json`
+Import **`postman/CivicBuild-API.postman_collection.json`** (full API — 21 folders, 70+ requests).
+
+Legacy auth-only collection: `postman/CivicBuild-Auth-API.postman_collection.json`
 
 | Variable | Default | Use |
 |----------|---------|-----|
 | `baseUrl` | `https://civicbuild-production.up.railway.app` | Production (Railway) |
 | `baseUrlLocal` | `http://localhost:8081` | Docker / local Maven |
+| `accessToken` | (auto-set by Login) | Bearer token for protected routes |
+| `productId` | seed catalog UUID | Checkout / reviews / saved |
+| `agencyId` | (auto-set by Create Agency) | Agency-scoped routes |
 
-To test locally, change request URLs from `{{baseUrl}}` to `{{baseUrlLocal}}`, or set `baseUrl` to `http://localhost:8081`.
+To test locally, set `baseUrl` to `http://localhost:8081`.
 
-**Flow:** Register → Login (auto-saves tokens) → Checkout → Get Order / Verify Payment
+**Suggested flows:**
+1. **Customer:** Register → Login → List Products → Checkout → Verify Payment
+2. **Agency:** Login → Set account type `construction` → Create Agency → Create Product → List Agency Orders
+3. **Delivery:** Login → Setup delivery profile → List jobs
 
 ---
 
@@ -338,26 +476,40 @@ Tests all 14 auth scenarios: register, login, refresh rotation, logout, forgot/r
 
 ---
 
+## Frontend integration
+
+Copy-paste prompt for the Expo team: **[docs/FRONTEND_INTEGRATION_PROMPT.md](docs/FRONTEND_INTEGRATION_PROMPT.md)**
+
+Maps every mock store / constant to the real API endpoint, with request/response shapes and a phased migration checklist.
+
+---
+
 ## Project Structure
 
 ```
 src/main/java/backend/example/civicbuild/
-├── auth/
-│   ├── controller/     AuthController
-│   ├── service/        AuthService, TokenService, PasswordResetService
-│   ├── dto/            Request/response DTOs
-│   ├── entity/         User, RefreshToken, PasswordResetToken
-│   ├── repository/     JPA repositories
-│   ├── security/       JwtService, SecurityConfig, filters
-│   └── exception/      Domain exceptions
-├── email/              Resend email service + templates
-├── ratelimit/          Redis-backed rate limiter
-├── common/             ApiResponse wrapper, GlobalExceptionHandler, health
-└── config/             AppProperties, Neon datasource, Dotenv bootstrap
+├── auth/           JWT auth, profile, avatar
+├── onboarding/     Account type + completion persistence
+├── agency/         Agencies, posts, portfolio, personnel
+├── catalog/        Categories, suppliers, products
+├── delivery/       Delivery providers + jobs
+├── order/          Checkout, agency orders, stock
+├── payment/        Paystack webhook + reconciliation
+├── verification/   Private document upload
+├── saved/          Favorites
+├── review/         Product/supplier reviews
+├── messaging/      Customer ↔ agency threads
+├── notification/   In-app notifications
+├── admin/          Verification review (ADMIN)
+├── storage/        Cloudinary abstraction
+├── email/          Resend transactional email
+├── ratelimit/      Redis-backed rate limiter
+├── common/         ApiResponse, pagination, errors
+└── config/         AppProperties, datasource, Dotenv
 
-src/main/resources/
-├── application.yml
-└── db/migration/       Flyway SQL migrations
+src/main/resources/db/migration/   Flyway V1–V9
+postman/                             Postman collections
+docs/                                Frontend integration guides
 ```
 
 ---
@@ -413,29 +565,7 @@ Verification status: `UNVERIFIED` → `PENDING` → `VERIFIED` / `REJECTED` (cos
 
 `documentType` values: `BUSINESS_REGISTRATION`, `GOVERNMENT_ID`, `PROFESSIONAL_LICENSE`. Max file size: **5MB**.
 
----
-
-## Marketplace & onboarding APIs (new)
-
-**Onboarding** — `GET/PATCH /api/users/me/onboarding`, `POST /api/users/me/onboarding/complete`
-
-**Agencies** — `POST /api/agencies`, `GET/PATCH /api/agencies/me`, `GET /api/agencies`, `GET /api/agencies/{id}`
-
-**Agency content** — posts (`/api/agencies/me/posts`), portfolio list/delete, personnel approve/reject
-
-**Catalog (public read)** — `GET /api/categories`, `GET /api/suppliers`, `GET /api/products`
-
-**Agency products** — `POST/PATCH/DELETE /api/agencies/me/products`
-
-**Delivery** — `POST /api/delivery-providers/setup`, `GET/PATCH /api/delivery-providers/me`, jobs at `/api/delivery-providers/me/jobs`
-
-**Social** — saved items (`/api/users/me/saved`), reviews (`/api/reviews`), messages (`/api/messages`), notifications (`/api/notifications`)
-
-**Admin** — `GET /api/admin/verification/pending`, `POST /api/admin/verification/{userId}/approve|reject`
-
-**Agency orders** — `GET /api/agencies/me/orders`, `PATCH /api/agencies/me/orders/{id}/status`
-
-Checkout accepts optional `productId` per item; stock decrements on successful Paystack payment. Seed catalog data ships in migration `V9__seed_catalog.sql`.
+Seed catalog data (5 products, 3 suppliers) ships in `V9__seed_catalog.sql`. Checkout accepts optional `productId`; stock decrements on successful Paystack payment.
 
 ---
 
