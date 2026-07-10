@@ -13,6 +13,6 @@ public interface AgencyRepository extends JpaRepository<Agency, UUID> {
 
     Optional<Agency> findByOwnerId(UUID ownerId);
 
-    @Query("SELECT a FROM Agency a WHERE (:q IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', :q, '%')))")
-    Page<Agency> search(@Param("q") String q, Pageable pageable);
+    @Query("SELECT a FROM Agency a WHERE (:namePattern IS NULL OR LOWER(a.name) LIKE :namePattern)")
+    Page<Agency> search(@Param("namePattern") String namePattern, Pageable pageable);
 }

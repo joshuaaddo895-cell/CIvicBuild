@@ -12,9 +12,11 @@ public interface SupplierRepository extends JpaRepository<Supplier, UUID> {
 
     @Query("""
             SELECT s FROM Supplier s
-            WHERE (:q IS NULL OR LOWER(s.name) LIKE LOWER(CONCAT('%', :q, '%')))
+            WHERE (:namePattern IS NULL OR LOWER(s.name) LIKE :namePattern)
               AND (:category IS NULL OR s.category.id = :category)
             """)
     Page<Supplier> search(
-            @Param("q") String q, @Param("category") String category, Pageable pageable);
+            @Param("namePattern") String namePattern,
+            @Param("category") String category,
+            Pageable pageable);
 }
