@@ -274,10 +274,12 @@ All responses use the standard envelope:
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/api/categories` | Public | Product categories (`cement`, `blocks`, …) |
-| `GET` | `/api/suppliers` | Public | Supplier directory (`?q=&category=&page=&limit=`) |
+| `GET` | `/api/suppliers` | Public | Supplier directory (`?q=&category=&page=&limit=`) — omit `q` to list all |
 | `GET` | `/api/suppliers/{id}` | Public | Supplier detail |
-| `GET` | `/api/products` | Public | Product listing (`?q=&category=&supplierId=&agencyId=`) |
+| `GET` | `/api/products` | Public | Product listing (`?q=&category=&supplierId=&agencyId=&page=&limit=`) |
 | `GET` | `/api/products/{id}` | Public | Product detail |
+
+> **Catalog search:** Optional `q` uses case-insensitive name search. Omit `q` entirely (do not send empty string). Fixed in commit `784afba` (PostgreSQL `lower(bytea)` issue).
 
 ### Agencies
 
@@ -310,18 +312,65 @@ All responses use the standard envelope:
 | `DELETE` | `/api/delivery-providers/me/association` | JWT | Leave agency |
 | `GET` | `/api/delivery-providers/me/jobs` | JWT | Assigned delivery jobs |
 
-### Verification, saved, social
+### Verification
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/verification/upload-document` | JWT | Upload verification doc |
+| `POST` | `/api/verification/upload-document` | JWT | Upload verification doc (multipart `file`) |
 | `GET` | `/api/verification/{userId}/document-url` | JWT | Signed private doc URL |
-| `GET` | `/api/users/me/saved` | JWT | Saved products/suppliers/agencies |
-| `POST` | `/api/users/me/saved` | JWT | Save item |
-| `GET` | `/api/reviews` | Public | Reviews by subject |
-| `GET` | `/api/messages/threads` | JWT | Message threads |
-| `GET` | `/api/notifications` | JWT | In-app notifications |
+
+### Saved items
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/users/me/saved` | JWT | List saved products, suppliers, agencies |
+| `POST` | `/api/users/me/saved` | JWT | Save item `{ id, type }` — types: `product`, `supplier`, `agency` |
+| `DELETE` | `/api/users/me/saved/{type}/{id}` | JWT | Remove saved item |
+
+### Reviews
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/reviews` | Public | List reviews (`?subjectType=product&subjectId=`) |
+| `GET` | `/api/reviews/summary` | Public | Average rating + count |
+| `GET` | `/api/reviews/me` | JWT | My reviews |
+| `POST` | `/api/reviews` | JWT | Create review |
+| `PATCH` | `/api/reviews/{id}` | JWT | Update own review |
+| `DELETE` | `/api/reviews/{id}` | JWT | Delete own review |
+
+### Messaging
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/messages/threads` | JWT | List threads |
+| `POST` | `/api/messages/threads` | JWT | Start thread `{ agencyId }` (agency-only) |
+| `GET` | `/api/messages/threads/{id}` | JWT | List messages in thread |
+| `POST` | `/api/messages/threads/{id}/messages` | JWT | Send message `{ text }` |
+| `PATCH` | `/api/messages/threads/{id}/read` | JWT | Mark thread read |
+
+### Notifications
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/notifications` | JWT | List notifications |
+| `PATCH` | `/api/notifications/{id}/read` | JWT | Mark one read |
+| `PATCH` | `/api/notifications/read-all` | JWT | Mark all read |
+
+### Agency orders
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/agencies/me/orders` | JWT | Orders containing my products |
+| `GET` | `/api/agencies/me/orders/{id}` | JWT | Order detail |
+| `PATCH` | `/api/agencies/me/orders/{id}/status` | JWT | Update status (`?status=processing`) |
+
+### Admin
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
 | `GET` | `/api/admin/verification/pending` | JWT (`ADMIN`) | Pending verifications |
+| `PATCH` | `/api/admin/verification/{userId}/approve` | JWT (`ADMIN`) | Approve user |
+| `PATCH` | `/api/admin/verification/{userId}/reject` | JWT (`ADMIN`) | Reject user |
 
 ---
 
@@ -433,7 +482,7 @@ Returns:
 
 ## Postman Collection
 
-Import **`postman/CivicBuild-API.postman_collection.json`** (full API — 21 folders, 70+ requests).
+Import **`postman/CivicBuild-API.postman_collection.json`** (full API — 21 folders, 75+ requests).
 
 Legacy auth-only collection: `postman/CivicBuild-Auth-API.postman_collection.json`
 
@@ -442,15 +491,22 @@ Legacy auth-only collection: `postman/CivicBuild-Auth-API.postman_collection.jso
 | `baseUrl` | `https://civicbuild-production.up.railway.app` | Production (Railway) |
 | `baseUrlLocal` | `http://localhost:8081` | Docker / local Maven |
 | `accessToken` | (auto-set by Login) | Bearer token for protected routes |
-| `productId` | seed catalog UUID | Checkout / reviews / saved |
+| `productId` | `b2000001-0000-4000-8000-000000000001` | Dangote Cement — checkout / reviews / saved |
+| `supplierId` | `a1000001-0000-4000-8000-000000000001` | BuildMart Ghana |
 | `agencyId` | (auto-set by Create Agency) | Agency-scoped routes |
+| `reviewId` | (auto-set by Create Review) | Update / delete review |
+| `notificationId` | (from List Notifications) | Mark notification read |
+| `threadId` | (auto-set by Start Thread) | Messages |
 
 To test locally, set `baseUrl` to `http://localhost:8081`.
 
+**Smoke (no auth):** App Health → List Products → List Suppliers → Get Product
+
 **Suggested flows:**
-1. **Customer:** Register → Login → List Products → Checkout → Verify Payment
-2. **Agency:** Login → Set account type `construction` → Create Agency → Create Product → List Agency Orders
-3. **Delivery:** Login → Setup delivery profile → List jobs
+1. **Customer:** Register → Login → List Products → Save Item → Checkout → Verify Payment → List Orders
+2. **Agency:** Login → Patch onboarding `construction` → Create Agency → Create Post → Upload Portfolio → Create Product → List Agency Orders
+3. **Delivery:** Login → Setup delivery profile → Agency approves personnel → List jobs
+4. **Social:** Start Thread → Send Message → Create Review → List Notifications → Mark All Read
 
 ---
 
@@ -478,9 +534,17 @@ Tests all 14 auth scenarios: register, login, refresh rotation, logout, forgot/r
 
 ## Frontend integration
 
-Copy-paste prompt for the Expo team: **[docs/FRONTEND_INTEGRATION_PROMPT.md](docs/FRONTEND_INTEGRATION_PROMPT.md)**
+The **CivicBuild Expo** app (`CivicBuild-Frontend`, local path `/Users/mac/Pictures/CivicBuildFrontend`) is wired to this API as of commit **`c3faf82`**. Mock stores and constants were removed; all marketplace, agency, delivery, and social screens call the live backend.
 
-Maps every mock store / constant to the real API endpoint, with request/response shapes and a phased migration checklist.
+| Document | Purpose |
+|----------|---------|
+| **[docs/FRONTEND_API_REFERENCE.md](docs/FRONTEND_API_REFERENCE.md)** | **Postman-style API reference** — endpoints, bodies, live Railway examples |
+| **[docs/FRONTEND_INTEGRATION_PROMPT.md](docs/FRONTEND_INTEGRATION_PROMPT.md)** | Quick setup + copy-paste test calls |
+| `docs/FRONTEND_MASTER_INTEGRATION_PROMPT.md` | Agent prompt for validation only |
+
+Set `EXPO_PUBLIC_API_URL=https://civicbuild-production.up.railway.app` (or `http://localhost:8081` for local backend).
+
+**Not on backend (do not implement in frontend):** `verify-email`, `resend-verification`, supplier message threads, WebSocket messaging.
 
 ---
 

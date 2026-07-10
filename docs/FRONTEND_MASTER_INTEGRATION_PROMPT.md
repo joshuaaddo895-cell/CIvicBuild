@@ -1,425 +1,243 @@
-# CivicBuild Frontend — Master Prompt: Wire All Remaining Features to Backend
+# CivicBuild Frontend — Master Prompt: Consume Railway Backend APIs
 
-You are completing backend integration for the **CivicBuild** Expo React Native app (SDK 54). The Spring Boot API is live. Your job is to wire **every feature that still uses mock data, local Zustand persistence, or hardcoded constants** to real HTTP calls — in one cohesive pass, with consistent patterns across the app.
+> **COPY THIS ENTIRE FILE** into a Cursor/Composer agent on the Expo frontend repo.
 
-Read Expo v54 docs before coding: https://docs.expo.dev/versions/v54.0.0/
+You are working on the **CivicBuild** Expo React Native app (SDK 54). The Spring Boot API is **live on Railway** and the frontend has been wired to it (commit `c3faf82` on `CivicBuild-Frontend`). Your job is to **consume, validate, polish, and extend** the integrated features against **Railway production** — not reintroduce mocks or local persistence for server-owned data.
+
+**Railway API (use this):** `https://civicbuild-production.up.railway.app`  
+**Frontend repo:** `/Users/mac/Pictures/CivicBuildFrontend`  
+**Backend repo:** `/Users/mac/CivicBuildBackend`  
+**Expo docs:** https://docs.expo.dev/versions/v54.0.0/
+
+### Railway production status (verified)
+
+All public endpoints below return `success: true` on Railway:
+
+| Endpoint | Status |
+|----------|--------|
+| `GET /api/health` | UP |
+| `GET /api/categories` | OK |
+| `GET /api/products?page=0&limit=20` | 5 seed products |
+| `GET /api/suppliers?page=0&limit=20` | 3 seed suppliers |
+| `GET /api/products?q=cement` | Search works |
+| `GET /api/suppliers?q=build` | Search works |
+| `GET /api/products/{seedId}` | Dangote Cement 50kg — 88 GHS |
+| `GET /api/suppliers/{seedId}` | BuildMart Ghana |
+| `GET /api/reviews/summary?...` | OK |
+
+`GET /api/agencies` returns empty until a construction user creates an agency — expected.
 
 ---
 
-## 0. Environment & global rules
+## 0. Environment — Railway first
 
 ```bash
+# REQUIRED — Railway production (what the app should use)
 EXPO_PUBLIC_API_URL=https://civicbuild-production.up.railway.app
-# local: http://localhost:8081
+
+# Optional — local backend only for backend dev
+# EXPO_PUBLIC_API_URL=http://localhost:8081
 ```
 
-**Non-negotiable integration rules:**
+Run the app:
 
-1. **Never send `file://` or `content://` URIs in JSON bodies.** Upload via multipart (`field name: file`) first, then send the returned HTTPS URL.
-2. **Never trust local `managedAgencyId`.** Always read from `GET /api/users/me/onboarding` after login and after any onboarding mutation.
-3. **Use existing `apiClient`** (`src/api/client.ts`) — it handles Bearer tokens and 401 refresh. Do not create a second HTTP client.
-4. **Use the envelope pattern:** `{ success, message, data, errors, timestamp }`. Unwrap with `unwrapApiResponse` from `src/api/authTypes.ts`. Use `toApiResult` from `src/api/apiResult.ts` for `{ ok, data | error }` results.
-5. **Pagination:** `?page=0&limit=20` → `data: { items, page, limit, total, hasNextPage }`.
-6. **Errors:** Show `message`; map `errors: [{ field, message }]` via existing `normalizeApiError` in `src/api/errors.ts`.
-7. **Loading / error / empty states:** Every screen that fetches must show ActivityIndicator while loading, user-friendly error with retry, and existing EmptyState when list is empty.
-8. **Optimistic UI only where rollback is trivial.** Prefer server response as source of truth, then update local cache.
-9. **Do not break already-wired flows.** See §2 — extend, don't rewrite.
-10. **User constraint:** Do **not** modify Auth, Cart, Checkout, or Payment **screens** unless absolutely required. Checkout may be updated only in `src/utils/orderMappers.ts` to include `productId` in the payload (cart already has `productId`).
+```bash
+cd /Users/mac/Pictures/CivicBuildFrontend
+npm start
+```
+
+Typecheck before finishing:
+
+```bash
+npm run typecheck
+```
 
 ---
 
-## 1. What is ALREADY wired (do not regress)
+## 0b. New Railway features to consume (post-mock removal)
 
-| Module | Files | Endpoints |
-|--------|-------|-----------|
-| Auth | `src/api/auth.ts`, Login/Register/Forgot/Verify/ChangePassword | `/api/auth/*` |
-| Users | `src/api/users.ts`, EditProfileScreen | `GET/PATCH /api/users/me` |
-| Account delete | `src/api/account.ts` | `DELETE /api/account` |
-| Onboarding | `src/api/onboarding.ts`, authStore, RoleSelection, Verification | `/api/users/me/onboarding` |
-| Agency create | VerificationScreen → `createAgency` | `POST /api/agencies` |
-| Verification docs | `src/api/verification.ts`, VerificationUploadField | `/api/verification/*` |
-| Portfolio upload | `src/api/agencyPortfolio.ts`, AgencyPortfolioScreen | `POST /api/agency/portfolio/upload` |
-| Catalog products (read) | `src/api/catalog.ts`, productStore.fetchCatalog, HomeScreen | `GET /api/products` |
-| Agency products CRUD | `src/api/agencies.ts`, AgencyProductForm/Products | `/api/agencies/me/products/*` |
-| Checkout (partial) | `src/api/orders.ts`, checkoutService | `/api/orders/checkout`, verify, get, list |
+These backend areas are **live on Railway** and already have API modules + wired screens. Validate they work end-to-end against production:
 
----
-
-## 2. What is NOT wired yet (your full scope)
-
-Wire **all** of the following in this session.
-
-### A. Agency posts (HIGH — navbar Create Post depends on this)
-
-**Currently:** `src/store/agencyPostsStore.ts` + `src/constants/mockAgencyPosts.ts` + AsyncStorage  
-**API exists in:** `src/api/agencies.ts` (`getMyAgencyPosts`, `createAgencyPost`, `updateAgencyPost`, `deleteAgencyPost`, `getAgencyPosts`) — **screens don't use it**
-
-**Wire these files:**
-- `src/screens/agency/AgencyPostFormScreen.tsx` — create/edit via API
-- `src/screens/agency/AgencyPostsScreen.tsx` — list + delete via API
-- `src/screens/agency/AgencyDashboardScreen.tsx` — fetch posts from API (not store seed)
-- `src/screens/main/AgencyDetailScreen.tsx` — public `GET /api/agencies/{id}/posts`
-
-**Needs:**
-- Remove `useAgencyPostsStore` from all screens
-- Delete or gut `agencyPostsStore.ts` and stop importing `SEED_AGENCY_POSTS`
-- Map `BackendAgencyPost.imageUrl` → UI `imageUri` if needed
-- Post image: if user picks local image, upload via product image endpoint or add post image upload if backend supports it; otherwise allow `imageUrl: null`
-- After create from navbar tab → `navigation.goBack()` still works
+| Feature | Railway endpoints | Frontend module | Key screens |
+|---------|-------------------|-----------------|-------------|
+| **Catalog** | `GET /api/products`, `/api/suppliers`, `/api/categories` | `catalog.ts` | Home, AllSuppliers, SupplierDetail |
+| **Saved items** | `GET/POST/DELETE /api/users/me/saved` | `saved.ts` | Saved, ProductDetail, AgencyDetail |
+| **Reviews** | `GET/POST/PATCH/DELETE /api/reviews` | `reviews.ts` | Reviews, MyReviews, ProductDetail |
+| **Messages** | `GET/POST /api/messages/threads` | `messages.ts` | Messages, ConversationDetail |
+| **Notifications** | `GET/PATCH /api/notifications` | `notifications.ts` | Notifications |
+| **Agency posts** | `GET/POST/PATCH/DELETE /api/agencies/me/posts` | `agencies.ts` | AgencyPosts, AgencyPostForm, AgencyDetail |
+| **Agency portfolio** | `GET/POST/DELETE` portfolio + upload | `agencies.ts`, `agencyPortfolio.ts` | AgencyPortfolio, AgencyDetail |
+| **Agency orders** | `GET/PATCH /api/agencies/me/orders` | `agencyOrders.ts` | AgencyOrders, AgencyOrderDetail |
+| **Agency personnel** | `GET/PATCH` personnel approve/reject | `agencies.ts` | AgencyPersonnel |
+| **Delivery** | `POST/GET/PATCH /api/delivery-providers/*` | `delivery.ts` | DeliveryProviderSetup, DeliveryDashboard |
+| **Avatar upload** | `POST /api/users/me/avatar` | `users.ts` | EditProfile |
+| **Checkout hardening** | `POST /api/orders/checkout` with `productId` | `orderMappers.ts` | Checkout (mapper only) |
+| **Agency directory** | `GET /api/agencies` | `agencies.ts` | ConstructionAgencySelect, AgencyDetail |
 
 ---
 
-### B. Agency portfolio list + delete
+## 1. Non-negotiable integration rules
 
-**Currently:** Upload hits API, but list is cached in `src/store/agencyPortfolioStore.ts`  
-**API exists:** `getMyPortfolio`, `getAgencyPortfolio`, `deletePortfolioImage` in `src/api/agencies.ts`
-
-**Wire:**
-- `src/screens/agency/AgencyPortfolioScreen.tsx` — on mount call `GET /api/agencies/me/portfolio`; refetch after upload/delete; do not persist signed URLs long-term
-- `src/screens/main/AgencyDetailScreen.tsx` — `GET /api/agencies/{id}/portfolio` for public view
-- `src/screens/agency/AgencyDashboardScreen.tsx` — portfolio preview from API
-
-**Delete:** `agencyPortfolioStore.ts` after migration
-
----
-
-### C. Agency orders
-
-**Currently:** `src/constants/mockAgencyOrders.ts`  
-**API needed:** create `src/api/agencyOrders.ts` (or extend agencies.ts):
-
-```
-GET  /api/agencies/me/orders
-GET  /api/agencies/me/orders/{orderId}
-PATCH /api/agencies/me/orders/{orderId}/status?status=pending|processing|delivered|cancelled
-```
-
-**Wire:**
-- `src/screens/agency/AgencyOrdersScreen.tsx`
-- `src/screens/agency/AgencyOrderDetailScreen.tsx`
-- `src/screens/agency/AgencyDashboardScreen.tsx` (latest order preview)
-
-**Map backend status** to frontend `OrderStatus` (`pending | processing | delivered | cancelled`).
-
-**Delete:** `mockAgencyOrders.ts` and all imports.
+1. **Never send `file://` or `content://` URIs in JSON bodies.** Upload via multipart (`field name: file`) first; use the returned HTTPS URL in PATCH/POST bodies.
+2. **Never trust local `managedAgencyId`.** Always read from `GET /api/users/me/onboarding` after login and after any onboarding mutation (`syncOnboardingFromServer()`).
+3. **Use `apiClient` only** (`src/api/client.ts`) — Bearer token + 401 refresh. No second HTTP client.
+4. **Envelope pattern:** `{ success, message, data, errors, timestamp }`. Unwrap with `unwrapApiResponse` (`src/api/authTypes.ts`). Use `toApiResult` (`src/api/apiResult.ts`) for `{ ok, data | error }`.
+5. **Pagination:** `?page=0&limit=20` → `data: { items, page, limit, total, hasNextPage }`. Omitting `q` is valid — backend precomputes LIKE patterns (do not pass empty string for search).
+6. **Errors:** Show `message`; map `errors: [{ field, message }]` via `normalizeApiError` (`src/api/errors.ts`).
+7. **Loading / error / empty states** on every fetch screen: `ActivityIndicator`, retry button, `EmptyState`.
+8. **Server is source of truth** after mutations; optimistic UI only where rollback is trivial (saved toggle).
+9. **Do not modify** Auth, Cart, Checkout, or Payment **screens** unless absolutely required. Checkout payload changes only in `src/utils/orderMappers.ts` (`productId` on each item).
+10. **Messaging threads** are **agency-only**: `POST /api/messages/threads { agencyId }`. No supplier threads on backend yet.
 
 ---
 
-### D. Customer order history (API exists, UI not wired)
+## 2. API client modules (all implemented)
 
-**Currently:** `listMyOrders` in `src/api/checkoutService.ts` — no screen uses it
+| Module | File | Key functions |
+|--------|------|---------------|
+| Auth | `src/api/auth.ts` | `login`, `register`, `googleSignIn`, `refresh`, `logout`, `forgotPassword`, `resetPassword`, `changePassword` |
+| Users | `src/api/users.ts` | `getProfile`, `updateProfile`, `uploadAvatar` |
+| Account | `src/api/account.ts` | `deleteAccount` |
+| Onboarding | `src/api/onboarding.ts` | `getOnboarding`, `patchOnboarding`, `completeOnboarding` |
+| Catalog | `src/api/catalog.ts` | `getCategories`, `getSuppliers`, `getSupplier`, `getProducts`, `getProduct`, mappers |
+| Agencies | `src/api/agencies.ts` | CRUD agency, posts, portfolio, personnel, products, `listAgencies`, `getAgency` |
+| Agency orders | `src/api/agencyOrders.ts` | `getAgencyOrders`, `getAgencyOrder`, `updateAgencyOrderStatus` |
+| Agency portfolio upload | `src/api/agencyPortfolio.ts` | `uploadAgencyPortfolioImage` |
+| Orders / checkout | `src/api/orders.ts`, `src/api/checkoutService.ts` | `checkout`, `verifyPayment`, `getOrder`, `listMyOrders` |
+| Delivery | `src/api/delivery.ts` | `setupDeliveryProvider`, `getMyDeliveryProvider`, `getMyDeliveryJobs`, `updateDeliveryJobStatus` |
+| Saved | `src/api/saved.ts` | `getSavedItems`, `saveItem`, `removeSavedItem` |
+| Reviews | `src/api/reviews.ts` | `getReviews`, `getReviewSummary`, `getMyReviews`, `createReview`, `updateReview`, `deleteReview` |
+| Messages | `src/api/messages.ts` | `getThreads`, `startThread`, `getThreadMessages`, `sendMessage`, `markThreadRead` |
+| Notifications | `src/api/notifications.ts` | `getNotifications`, `markNotificationRead`, `markAllNotificationsRead` |
+| Verification | `src/api/verification.ts` | document upload + signed URL |
 
-**Wire:**
-- Add order history section to Profile or a dedicated screen if one exists
-- At minimum: ensure post-checkout flow can fetch `GET /api/orders/{orderId}` (already partially wired)
-
----
-
-### E. Checkout hardening (mapper only — do not edit CheckoutScreen)
-
-**Currently:** `src/utils/orderMappers.ts` sends product names without `productId`  
-**Cart already has:** `productId` in `CartItem` (`src/types/cart.ts`)
-
-**Change:** Include `productId` in each `BackendOrderItem` when mapping cart → checkout request.
-
----
-
-### F. Suppliers & construction agency directory (catalog)
-
-**Currently mock:**
-- `src/constants/mockSuppliers.ts` → `TRUSTED_SUPPLIERS` in `marketplaceData.ts`
-- `src/constants/constructionAgencies.ts` → `VERIFIED_CONSTRUCTION_AGENCIES`
-- `src/constants/agencyProfiles.ts` → hardcoded profile details
-
-**API:** `src/api/catalog.ts` has `getSuppliers`, `getSupplier`; `src/api/agencies.ts` has `listAgencies`, `getAgency`
-
-**Wire:**
-- `src/screens/main/HomeScreen.tsx` — suppliers carousel from `GET /api/suppliers`
-- `src/screens/main/AllSuppliersScreen.tsx`
-- `src/screens/main/SupplierDetailScreen.tsx`
-- `src/screens/main/AgencyDetailScreen.tsx` — agency from `GET /api/agencies/{id}` + profile fields from response (replace `getAgencyProfile` mock)
-- `src/components/delivery/ConstructionAgencySelect.tsx` — `GET /api/agencies?q=` instead of `VERIFIED_CONSTRUCTION_AGENCIES`
-- `src/utils/productHelpers.ts`, `src/utils/roleLabels.ts` — resolve supplier/agency names from API or passed data, not mock constants
-
-**Categories:** optionally replace `MARKETPLACE_CATEGORIES` with `GET /api/categories` on HomeScreen / AllSuppliers.
+**Types:** `src/types/*Api.ts`, `src/types/catalog.ts`, `src/types/agency.ts`, `src/types/order.ts`
 
 ---
 
-### G. Delivery provider setup & jobs
+## 3. Screen → API mapping (wired — do not regress)
 
-**Currently:** `src/store/deliveryPersonnelStore.ts` + local authStore `submitDeliveryProviderSetup`
-
-**Create:** `src/api/delivery.ts`
-
-```
-POST   /api/delivery-providers/setup
-GET    /api/delivery-providers/me
-PATCH  /api/delivery-providers/me
-DELETE /api/delivery-providers/me/association
-GET    /api/delivery-providers/me/jobs
-PATCH  /api/delivery-providers/me/jobs/{jobId}/status?status=assigned|in_transit|delivered
-```
-
-**Wire:**
-- `src/screens/onboarding/DeliveryProviderSetupScreen.tsx` — POST setup, then `completeOnboarding` API, then `syncOnboardingFromServer`
-- Profile photo: upload avatar first if local URI
-- `src/screens/delivery/DeliveryDashboardScreen.tsx` — GET jobs, show real assigned jobs
-- `src/store/authStore.ts` — `submitDeliveryProviderSetup` should call API, not local personnel store
-
-**Delete:** seed data in `deliveryPersonnelStore.ts` for production paths (or entire store if agency personnel also moves to API)
-
----
-
-### H. Agency personnel
-
-**Currently:** `deliveryPersonnelStore` + `AgencyPersonnelScreen`, `NotificationsScreen`
-
-**Create in** `src/api/agencies.ts` or `src/api/personnel.ts`:
-
-```
-GET    /api/agencies/me/personnel
-POST   /api/agencies/me/personnel/{personnelId}/approve
-POST   /api/agencies/me/personnel/{personnelId}/reject
-DELETE /api/agencies/me/personnel/{personnelId}
-```
-
-**Wire:**
-- `src/screens/agency/AgencyPersonnelScreen.tsx`
-- `src/screens/agency/NotificationsScreen.tsx` — show personnel pending notifications from `GET /api/notifications` (see K)
-
----
-
-### I. Saved / favorites
-
-**Currently:** `src/store/savedStore.ts` (AsyncStorage only)
-
-**Create:** `src/api/saved.ts`
-
-```
-GET    /api/users/me/saved
-POST   /api/users/me/saved        { id, type: product|supplier|agency }
-DELETE /api/users/me/saved/{type}/{id}
-```
-
-**Wire every `toggleSaved` / `isSaved` usage:**
-- `HomeScreen`, `ProductDetailScreen`, `SupplierDetailScreen`, `AgencyDetailScreen`, `SavedScreen`, cards
-
-**Pattern:** Optimistic toggle with rollback on error. On SavedScreen mount: GET saved → resolve IDs via catalog/agency APIs.
-
-**Delete:** persisted local saved store (keep in-memory cache synced from server if useful).
-
----
-
-### J. Reviews
-
-**Currently:** `src/constants/mockReviews.ts`, `mockMyReviews.ts`  
-**Screens:** `ReviewsScreen`, `MyReviewsScreen`, `ProfileScreen`, `ProductDetailScreen`, `SupplierDetailScreen`
-
-**Create:** `src/api/reviews.ts`
-
-```
-GET  /api/reviews?subjectType=product|supplier&subjectId=
-GET  /api/reviews/summary?subjectType=&subjectId=
-GET  /api/reviews/me
-POST /api/reviews
-PATCH /api/reviews/{reviewId}
-DELETE /api/reviews/{reviewId}
-```
-
-**Wire all review displays to API.** Add write-review UI on ProductDetail/SupplierDetail if missing (POST after verified purchase).
-
-**Delete:** mock review constants from runtime paths.
-
----
-
-### K. Messaging
-
-**Currently:** `src/constants/messagesData.ts`  
-**Screens:** `MessagesScreen`, `ConversationDetailScreen`
-
-**Create:** `src/api/messages.ts`
-
-```
-GET   /api/messages/threads
-POST  /api/messages/threads           { agencyId }
-GET   /api/messages/threads/{threadId}
-POST  /api/messages/threads/{threadId}/messages   { text }
-PATCH /api/messages/threads/{threadId}/read
-```
-
-**Wire both screens.** Remove local `CHAT_MESSAGES_BY_THREAD` and fake send. Refetch thread on focus.
-
----
-
-### L. Notifications
-
-**Currently:** `NotificationsScreen` is empty placeholder
-
-**Create:** `src/api/notifications.ts`
-
-```
-GET   /api/notifications
-PATCH /api/notifications/{id}/read
-PATCH /api/notifications/read-all
-```
-
-**Wire:** `src/screens/agency/NotificationsScreen.tsx` — list with read/unread; types: `order | verification | personnel | message`
-
----
-
-### M. Profile avatar upload
-
-**Currently:** `EditProfileScreen` sends local URI as `profilePictureUrl` in PATCH — **broken**
-
-**Add to** `src/api/users.ts`:
-
-```
-POST /api/users/me/avatar   (multipart file)
-→ { profilePictureUrl: "https://res.cloudinary.com/..." }
-```
-
-**Wire:** `EditProfileScreen` + `ProfileAvatarEditor` — upload file first, then PATCH with returned URL.
-
----
-
-### N. Product store cleanup
-
-**Currently:** `productStore` fetches catalog but agency CRUD still mixes local cache.
-
-**Needs:**
-- After any agency product mutation, call `fetchCatalog()` or surgically update from API response
-- Remove any remaining references to `MOCK_PRODUCTS`, `initialize`, `extraProducts`, `removedProductIds`, `productOverrides`
-- `getPopularProducts()` must return API data only
-
----
-
-## 3. New API modules to create
-
-```
-src/api/
-  saved.ts          ← NEW
-  reviews.ts        ← NEW
-  messages.ts       ← NEW
-  notifications.ts  ← NEW
-  delivery.ts       ← NEW
-  agencyOrders.ts   ← NEW (or extend agencies.ts)
-
-src/types/
-  savedApi.ts
-  reviewsApi.ts
-  messagesApi.ts
-  notificationsApi.ts
-  deliveryApi.ts
-  agencyOrdersApi.ts
-```
-
-Follow the pattern in `src/api/onboarding.ts` and `src/api/catalog.ts`.
-
----
-
-## 4. Stores & constants to remove or stop using
-
-**Remove from runtime (delete files or leave only for tests if needed):**
-
-| File | Reason |
-|------|--------|
-| `src/store/agencyPostsStore.ts` | Replaced by posts API |
-| `src/store/agencyPortfolioStore.ts` | Replaced by portfolio API |
-| `src/store/savedStore.ts` | Replaced by saved API |
-| `src/store/deliveryPersonnelStore.ts` | Replaced by delivery + personnel API |
-| `src/constants/mockAgencyOrders.ts` | Replaced by agency orders API |
-| `src/constants/mockAgencyPosts.ts` | Replaced by posts API |
-| `src/constants/mockReviews.ts` | Replaced by reviews API |
-| `src/constants/mockMyReviews.ts` | Replaced by reviews API |
-| `src/constants/messagesData.ts` | Replaced by messages API |
-| `src/constants/mockSuppliers.ts` | Replaced by suppliers API |
-| `src/constants/constructionAgencies.ts` | Replaced by agencies API |
-| `src/constants/agencyProfiles.ts` | Replaced by `GET /api/agencies/{id}` |
-| `src/constants/mockProducts.ts` | Replaced by products API |
-
-**Keep:** `mockCheckout.ts` only when `EXPO_PUBLIC_USE_MOCK_CHECKOUT=true`.
-
----
-
-## 5. authStore requirements
-
-- `managedAgencyId` must always come from `syncOnboardingFromServer()` — never set locally except as temporary UI before server confirms
-- After delivery setup, agency create, or onboarding complete: always call `syncOnboardingFromServer()`
-- Remove any re-introduced `onboardingProfilesByUserId` local RBAC persistence
-- `submitDeliveryProviderSetup` must call backend then refresh onboarding state
-
----
-
-## 6. UI screens → API mapping (complete checklist)
-
-| Screen | Must call |
+| Screen | API calls |
 |--------|-----------|
-| AgencyPostFormScreen | POST/PATCH `/api/agencies/me/posts` |
-| AgencyPostsScreen | GET/DELETE posts |
-| AgencyPortfolioScreen | GET/DELETE portfolio + existing upload |
-| AgencyOrdersScreen | GET agency orders |
-| AgencyOrderDetailScreen | GET order + PATCH status |
-| AgencyPersonnelScreen | GET personnel + approve/reject/delete |
-| AgencyDashboardScreen | API for posts, orders, products, portfolio previews |
-| AgencyDetailScreen (customer) | GET agency, posts, portfolio, products |
-| DeliveryProviderSetupScreen | POST delivery setup + complete onboarding |
-| DeliveryDashboardScreen | GET delivery jobs |
-| ConstructionAgencySelect | GET `/api/agencies` |
-| HomeScreen | GET products + suppliers (+ categories) |
-| AllSuppliersScreen | GET suppliers |
-| SupplierDetailScreen | GET supplier + reviews |
-| ProductDetailScreen | GET product + reviews |
-| SavedScreen | GET saved + resolve catalog |
-| ReviewsScreen | GET reviews + summary |
-| MyReviewsScreen | GET `/api/reviews/me` |
-| MessagesScreen | GET threads |
-| ConversationDetailScreen | GET messages + POST message + PATCH read |
-| NotificationsScreen | GET notifications |
-| EditProfileScreen | POST avatar + PATCH profile |
-| ProfileScreen | GET reviews/me summary from API |
+| `HomeScreen` | `getProducts`, `getSuppliers`, `productStore.fetchCatalog`, `savedStore.syncFromServer` |
+| `AllSuppliersScreen` | `getSuppliers` (paginated + search) |
+| `SupplierDetailScreen` | `getSupplier`, `findProductsBySupplier` |
+| `ProductDetailScreen` | `getReviewSummary`, catalog via `productStore` |
+| `AgencyDetailScreen` | `getAgency`, `getAgencyPosts`, `getAgencyPortfolio`, `startThread`, saved toggle |
+| `SavedScreen` | `syncFromServer`, `resolveSavedItemDetailAsync` |
+| `ReviewsScreen` | `getReviews`, `getReviewSummary` |
+| `MyReviewsScreen` | `getMyReviews` + catalog resolve |
+| `MessagesScreen` | `getThreads` |
+| `ConversationDetailScreen` | `getThreadMessages`, `sendMessage`, `markThreadRead`, `startThread` (if `agencyId` param) |
+| `ProfileScreen` | `getMyReviews`, `getAgency` (delivery agency name) |
+| `EditProfileScreen` | `uploadAvatar` then `updateProfile` |
+| `AgencyPostFormScreen` | `createAgencyPost` / `updateAgencyPost`, `uploadAgencyProductImage` for local images |
+| `AgencyPostsScreen` | `getMyAgencyPosts`, `deleteAgencyPost` |
+| `AgencyPortfolioScreen` | `getMyPortfolio`, `uploadAgencyPortfolioImage`, `deletePortfolioImage` |
+| `AgencyOrdersScreen` | `getAgencyOrders` |
+| `AgencyOrderDetailScreen` | `getAgencyOrder`, `updateAgencyOrderStatus` |
+| `AgencyPersonnelScreen` | `getAgencyPersonnel`, approve/reject/remove |
+| `AgencyDashboardScreen` | parallel fetch: agency, posts, portfolio, orders, personnel, products |
+| `NotificationsScreen` | `getNotifications`, `markNotificationRead` |
+| `DeliveryProviderSetupScreen` | `setupDeliveryProvider`, `uploadAvatar`, `completeOnboarding`, `syncOnboardingFromServer` |
+| `DeliveryDashboardScreen` | `getMyDeliveryProvider`, `getMyDeliveryJobs`, `getAgency` |
+| `ConstructionAgencySelect` | `listAgencies?q=` |
+| `PendingCompanyConfirmationScreen` | `getAgency`, `syncOnboardingFromServer` on focus |
+
+**Checkout mapper:** `src/utils/orderMappers.ts` — each `BackendOrderItem` includes `productId` from `CartItem`.
 
 ---
 
-## 7. Backend seed UUIDs (use in tests)
+## 4. Stores & persistence (current state)
 
-**Products:**
-- `b2000001-0000-4000-8000-000000000001` Dangote Cement — 88 GHS
-- `b2000001-0000-4000-8000-000000000002` Iron Rods 12mm — 45 GHS
+| Store | Behavior |
+|-------|----------|
+| `authStore` | Persists `user` + `isAuthenticated` only; tokens in SecureStore; onboarding from server |
+| `savedStore` | In-memory cache synced from `GET /api/users/me/saved` — **not** AsyncStorage |
+| `productStore` | In-memory catalog from `GET /api/products`; refresh after agency product mutations |
+| `cartStore` | Local cart only (unchanged) |
 
-**Suppliers:**
-- `a1000001-0000-4000-8000-000000000001` BuildMart Ghana
-
----
-
-## 8. Implementation order (follow this sequence)
-
-1. Create all missing `src/api/*` modules with types
-2. Agency posts (navbar create flow)
-3. Portfolio list/delete
-4. Agency orders
-5. Suppliers + agencies directory + AgencyDetail
-6. Delivery setup + jobs + personnel
-7. Saved items
-8. Reviews
-9. Messages
-10. Notifications
-11. Avatar upload
-12. Checkout mapper `productId`
-13. Delete mock stores/constants
-14. `npm run typecheck` — fix all errors
-15. Manual smoke test flows A–D below
+**Deleted (must not reintroduce):** `agencyPostsStore`, `agencyPortfolioStore`, `deliveryPersonnelStore`, and all mock constants under `src/constants/mock*`, `constructionAgencies`, `agencyProfiles`, `messagesData`.
 
 ---
 
-## 9. Validation flows (must pass)
+## 5. Upload flows
 
-**Flow A — Customer:** Browse API products → save product → checkout with `productId` → Paystack → verify → order in history
+| Feature | Endpoint | Field name | Then |
+|---------|----------|------------|------|
+| Profile avatar | `POST /api/users/me/avatar` | `file` | PATCH `/api/users/me` with `profilePictureUrl` |
+| Agency product image | `POST /api/agencies/me/products/upload-image` | `file` | Include `imageUrl` in product body |
+| Agency portfolio | `POST /api/agency/portfolio/upload` | `file` | Refetch `GET /api/agencies/me/portfolio` |
+| Verification doc | `POST /api/verification/upload-document` | `file` | Store returned `documentId` in onboarding state |
+| Agency post image | Use product upload endpoint OR `imageUrl: null` | — | No dedicated post upload on backend |
 
-**Flow B — Agency:** Onboarding construction → create agency → create post (navbar) → upload portfolio → list products → see agency orders
+Helper: `isLocalImageUri()` in `src/utils/agencyPostMappers.ts`; `buildMultipartFormData()` in `src/utils/uploadValidation.ts`.
 
-**Flow C — Delivery:** Onboarding delivery → pick agency from API → POST setup → agency approves personnel → delivery dashboard shows jobs
+---
 
-**Flow D — Social:** Message thread create + send → notification appears → reviews on product → saved items persist across reinstall
+## 6. authStore requirements
+
+- `managedAgencyId` only from `syncOnboardingFromServer()` — never set locally except transient UI
+- After agency create, delivery setup, onboarding complete: call `syncOnboardingFromServer()`
+- `submitDeliveryProviderSetup` is a no-op stub — real setup is in `DeliveryProviderSetupScreen` → API
+- On logout: `purgeLocalSession()` clears cart + saved cache
+
+---
+
+## 7. Seed data for Railway / Postman testing
+
+| Entity | UUID | Notes |
+|--------|------|-------|
+| Product | `b2000001-0000-4000-8000-000000000001` | Dangote Cement 50kg — 88 GHS |
+| Product | `b2000001-0000-4000-8000-000000000002` | Iron Rods 12mm — 45 GHS |
+| Supplier | `a1000001-0000-4000-8000-000000000001` | BuildMart Ghana |
+
+Verify on production:
+
+```bash
+curl https://civicbuild-production.up.railway.app/api/health
+curl "https://civicbuild-production.up.railway.app/api/products?page=0&limit=2"
+curl "https://civicbuild-production.up.railway.app/api/suppliers?page=0&limit=2"
+```
+
+---
+
+## 8. Validation flows (must pass)
+
+### Flow A — Customer
+1. Register → Login → `syncOnboardingFromServer`
+2. Home loads products + suppliers from API
+3. Save product (heart) → persists via `POST /api/users/me/saved`
+4. Add to cart → checkout with `productId` in payload → Paystack → verify → `GET /api/orders`
+
+### Flow B — Agency
+1. Onboarding `construction` → verification docs → `POST /api/agencies`
+2. Navbar **Create Post** → `POST /api/agencies/me/posts` → visible on public agency detail
+3. Upload portfolio → list on dashboard
+4. Create agency product → appears in catalog
+5. Customer order → `GET /api/agencies/me/orders` → update status
+
+### Flow C — Delivery
+1. Onboarding `delivery` → `listAgencies` → `POST /api/delivery-providers/setup` → `completeOnboarding`
+2. Agency approves personnel → delivery dashboard shows jobs from `GET /api/delivery-providers/me/jobs`
+
+### Flow D — Social
+1. Agency detail → **Message Us** → `startThread` → send message
+2. Notification appears in `GET /api/notifications`
+3. Product reviews load on `ReviewsScreen`
+4. Reinstall app + login → saved items restored from server
+
+---
+
+## 9. Polish & extension opportunities (optional)
+
+- **Customer order history UI** — `listMyOrders` exists in `checkoutService.ts`; add dedicated screen or Profile section
+- **Write review UI** on `ProductDetailScreen` / `SupplierDetailScreen` — `POST /api/reviews` after paid order
+- **Supplier messaging** — backend has no supplier threads; currently navigates to Messages list
+- **Categories from API** — `getCategories()` available; HomeScreen still uses static `MARKETPLACE_CATEGORIES` labels (IDs match seed)
+- **Agency search on Home** — `listAgencies` for construction agencies in supplier carousel routing
+- **Pull-to-refresh** on list screens (posts, orders, messages, notifications)
+- **WebSocket messaging** — not on backend; REST + refetch on focus is correct for now
 
 ---
 
@@ -427,24 +245,33 @@ Follow the pattern in `src/api/onboarding.ts` and `src/api/catalog.ts`.
 
 - Do not add hardcoded agency IDs like `buildstrong-ltd`
 - Do not persist onboarding RBAC in AsyncStorage
-- Do not store Cloudinary signed URLs long-term — refetch on preview
-- Do not modify Auth/Cart/Checkout/Payment **screens** (mapper-only exception for checkout)
+- Do not store Cloudinary signed URLs long-term — refetch portfolio on screen focus
 - Do not implement `verify-email` / `resend-verification` (not on backend)
-- Do not add WebSockets in this pass (REST + refetch on focus is fine)
 - Do not leave dead imports from deleted mock files
+- Do not create a second HTTP client
 
 ---
 
-## 11. Definition of done
+## 11. Definition of done (regression checklist)
 
-- [ ] Zero runtime imports from mock constants listed in §4
-- [ ] Zero persisted Zustand stores for posts, portfolio, saved, personnel
-- [ ] All §6 screens fetch from API with loading/error/empty states
 - [ ] `npm run typecheck` passes
-- [ ] Create Post from navbar persists to backend and appears on agency detail for customers
-- [ ] Reinstall app + login restores saved items, onboarding, and role from server
+- [ ] No runtime imports from deleted mock files (§4)
+- [ ] `GET /api/products` and `GET /api/suppliers` work without `q` param
+- [ ] Create Post from navbar persists and appears on agency detail
+- [ ] Saved items survive reinstall + login
+- [ ] Checkout sends `productId` per line item
+- [ ] Avatar upload uses multipart, not local URI in PATCH
+- [ ] `managedAgencyId` matches server after agency create
 
 ---
 
-**Frontend repo:** `/Users/mac/Pictures/CivicBuildFrontend`  
-**Backend API:** `https://civicbuild-production.up.railway.app`
+## 12. Reference docs
+
+| Doc | Purpose |
+|-----|---------|
+| `docs/FRONTEND_INTEGRATION_PROMPT.md` | Shorter API contract + payload examples |
+| `postman/CivicBuild-API.postman_collection.json` | All endpoints with seed variables |
+| `README.md` | Full endpoint tables + Railway setup |
+
+**Backend commits:** marketplace APIs `30a0b86`, docs `4826c32`, catalog search fix `784afba`  
+**Frontend commit:** full wire-up `c3faf82`
