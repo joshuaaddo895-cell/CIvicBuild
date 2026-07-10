@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "civicbuild-full-api",
     "name": "CivicBuild API",
-    "description": "Full CivicBuild backend API.\n\n**Production:** {{baseUrl}}\n**Local:** {{baseUrlLocal}}\n\nImport \u2192 set `accessToken` via Login \u2192 test protected routes.\n\nSee docs/FRONTEND_INTEGRATION_PROMPT.md for Expo wiring guide.",
+    "description": "Full CivicBuild backend API (21 folders, 75+ requests).\n\n**Production:** {{baseUrl}}\n**Local:** {{baseUrlLocal}}\n\n**Docs:**\n- docs/FRONTEND_MASTER_INTEGRATION_PROMPT.md — Expo validation & screen→API map (frontend wired at c3faf82)\n- docs/FRONTEND_INTEGRATION_PROMPT.md — API contract & payloads\n\n**Smoke (no auth):** App Health → List Products → List Suppliers\n\n**Seed UUIDs:** productId = Dangote Cement, supplierId = BuildMart Ghana (pre-filled).\n\nLogin sets accessToken; Create Agency sets agencyId; Create Review sets reviewId.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -77,6 +77,14 @@
     {
       "key": "imageId",
       "value": ""
+    },
+    {
+      "key": "reviewId",
+      "value": ""
+    },
+    {
+      "key": "notificationId",
+      "value": ""
     }
   ],
   "item": [
@@ -89,9 +97,23 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/health",
-            "description": "Public liveness"
+            "description": "Public liveness — expect `{ success: true, data: { status: 'UP' } }`"
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('success true', () => pm.expect(json.success).to.eql(true));",
+                  "pm.test('status UP', () => pm.expect(json.data.status).to.eql('UP'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Actuator Health",
@@ -470,7 +492,31 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/suppliers?page=0&limit=20",
-            "description": ""
+            "description": "Paginated supplier directory. Omit `q` to list all (do not send empty q)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('success true', () => pm.expect(json.success).to.eql(true));",
+                  "pm.test('has items array', () => pm.expect(json.data.items).to.be.an('array'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search Suppliers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/suppliers?q=build&page=0&limit=20",
+            "description": "Case-insensitive name search"
           },
           "response": []
         },
@@ -479,8 +525,8 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/suppliers/{supplierId}",
-            "description": ""
+            "url": "{{baseUrl}}/api/suppliers/{{supplierId}}",
+            "description": "Seed: BuildMart Ghana (a1000001-...)"
           },
           "response": []
         },
@@ -490,7 +536,31 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/products?page=0&limit=20",
-            "description": ""
+            "description": "Paginated product catalog. Omit `q` to list all."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('success true', () => pm.expect(json.success).to.eql(true));",
+                  "pm.test('has items array', () => pm.expect(json.data.items).to.be.an('array'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/products?q=cement&page=0&limit=20",
+            "description": "Case-insensitive name search"
           },
           "response": []
         },
@@ -499,8 +569,8 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/products/{productId}",
-            "description": ""
+            "url": "{{baseUrl}}/api/products/{{productId}}",
+            "description": "Seed: Dangote Cement 50kg (b2000001-...) — 88 GHS"
           },
           "response": []
         }
@@ -597,7 +667,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/agencies/{agencyId}",
+            "url": "{{baseUrl}}/api/agencies/{{agencyId}}",
             "description": ""
           },
           "response": []
@@ -644,7 +714,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/api/agencies/me/products/{productId}",
+            "url": "{{baseUrl}}/api/agencies/me/products/{{productId}}",
             "description": "",
             "body": {
               "mode": "raw",
@@ -688,7 +758,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/agencies/me/products/{productId}",
+            "url": "{{baseUrl}}/api/agencies/me/products/{{productId}}",
             "description": ""
           },
           "response": []
@@ -741,7 +811,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/agencies/{agencyId}/posts",
+            "url": "{{baseUrl}}/api/agencies/{{agencyId}}/posts",
             "description": ""
           },
           "response": []
@@ -760,7 +830,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/api/agencies/me/posts/{postId}",
+            "url": "{{baseUrl}}/api/agencies/me/posts/{{postId}}",
             "description": "",
             "body": {
               "mode": "raw",
@@ -779,7 +849,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/agencies/me/posts/{postId}",
+            "url": "{{baseUrl}}/api/agencies/me/posts/{{postId}}",
             "description": ""
           },
           "response": []
@@ -834,7 +904,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/agencies/{agencyId}/portfolio",
+            "url": "{{baseUrl}}/api/agencies/{{agencyId}}/portfolio",
             "description": ""
           },
           "response": []
@@ -849,7 +919,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/agencies/me/portfolio/{imageId}",
+            "url": "{{baseUrl}}/api/agencies/me/portfolio/{{imageId}}",
             "description": ""
           },
           "response": []
@@ -884,7 +954,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/agencies/me/orders/{orderId}",
+            "url": "{{baseUrl}}/api/agencies/me/orders/{{orderId}}",
             "description": ""
           },
           "response": []
@@ -899,7 +969,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/agencies/me/orders/{orderId}/status?status=processing",
+            "url": "{{baseUrl}}/api/agencies/me/orders/{{orderId}}/status?status=processing",
             "description": ""
           },
           "response": []
@@ -934,7 +1004,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/agencies/me/personnel/{personnelId}/approve",
+            "url": "{{baseUrl}}/api/agencies/me/personnel/{{personnelId}}/approve",
             "description": ""
           },
           "response": []
@@ -949,7 +1019,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/agencies/me/personnel/{personnelId}/reject",
+            "url": "{{baseUrl}}/api/agencies/me/personnel/{{personnelId}}/reject",
             "description": ""
           },
           "response": []
@@ -964,7 +1034,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/agencies/me/personnel/{personnelId}",
+            "url": "{{baseUrl}}/api/agencies/me/personnel/{{personnelId}}",
             "description": ""
           },
           "response": []
@@ -1075,7 +1145,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/delivery-providers/me/jobs/{orderId}/status?status=in_transit",
+            "url": "{{baseUrl}}/api/delivery-providers/me/jobs/{{orderId}}/status?status=in_transit",
             "description": ""
           },
           "response": []
@@ -1120,7 +1190,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/verification/{userId}/document-url?documentType=BUSINESS_REGISTRATION",
+            "url": "{{baseUrl}}/api/verification/{{userId}}/document-url?documentType=BUSINESS_REGISTRATION",
             "description": ""
           },
           "response": []
@@ -1199,7 +1269,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/orders/{orderId}/verify",
+            "url": "{{baseUrl}}/api/orders/{{orderId}}/verify",
             "description": ""
           },
           "response": []
@@ -1214,7 +1284,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/orders/{orderId}",
+            "url": "{{baseUrl}}/api/orders/{{orderId}}",
             "description": ""
           },
           "response": []
@@ -1287,7 +1357,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/users/me/saved/product/{productId}",
+            "url": "{{baseUrl}}/api/users/me/saved/product/{{productId}}",
             "description": ""
           },
           "response": []
@@ -1347,11 +1417,62 @@
               }
             ],
             "url": "{{baseUrl}}/api/reviews",
-            "description": "",
+            "description": "subjectType: product | supplier | agency",
             "body": {
               "mode": "raw",
               "raw": "{\"subjectType\":\"product\",\"subjectId\":\"{{productId}}\",\"rating\":5,\"text\":\"Great quality\",\"verifiedPurchase\":false}"
             }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) { pm.collectionVariables.set('reviewId', json.data.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Review",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/reviews/{{reviewId}}",
+            "description": "Update own review — run Create Review first",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"rating\":4,\"text\":\"Updated review text\"}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Review",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/reviews/{{reviewId}}",
+            "description": "Delete own review"
           },
           "response": []
         }
@@ -1390,13 +1511,26 @@
               }
             ],
             "url": "{{baseUrl}}/api/messages/threads",
-            "description": "",
+            "description": "Agency-only: `{ agencyId }` — no supplier threads yet",
             "body": {
               "mode": "raw",
               "raw": "{\"agencyId\":\"{{agencyId}}\"}"
             }
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) { pm.collectionVariables.set('threadId', json.data.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "List Messages",
@@ -1408,7 +1542,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/messages/threads/{threadId}",
+            "url": "{{baseUrl}}/api/messages/threads/{{threadId}}",
             "description": ""
           },
           "response": []
@@ -1427,7 +1561,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/api/messages/threads/{threadId}/messages",
+            "url": "{{baseUrl}}/api/messages/threads/{{threadId}}/messages",
             "description": "",
             "body": {
               "mode": "raw",
@@ -1446,7 +1580,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/messages/threads/{threadId}/read",
+            "url": "{{baseUrl}}/api/messages/threads/{{threadId}}/read",
             "description": ""
           },
           "response": []
@@ -1467,9 +1601,22 @@
               }
             ],
             "url": "{{baseUrl}}/api/notifications",
-            "description": ""
+            "description": "In-app notifications for current user"
           },
-          "response": []
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.length > 0) { pm.collectionVariables.set('notificationId', json.data[0].id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Mark Read",
@@ -1481,8 +1628,8 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/notifications/{orderId}/read",
-            "description": ""
+            "url": "{{baseUrl}}/api/notifications/{{notificationId}}/read",
+            "description": "PATCH — mark one notification read. Set notificationId from List Notifications response."
           },
           "response": []
         },
@@ -1531,7 +1678,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/admin/verification/{userId}/approve",
+            "url": "{{baseUrl}}/api/admin/verification/{{userId}}/approve",
             "description": ""
           },
           "response": []
@@ -1546,7 +1693,7 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/admin/verification/{userId}/reject",
+            "url": "{{baseUrl}}/api/admin/verification/{{userId}}/reject",
             "description": ""
           },
           "response": []
