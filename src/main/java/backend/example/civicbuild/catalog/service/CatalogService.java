@@ -15,6 +15,7 @@ import backend.example.civicbuild.catalog.repository.SupplierRepository;
 import backend.example.civicbuild.common.dto.PageResponse;
 import backend.example.civicbuild.common.exception.NotFoundException;
 import backend.example.civicbuild.common.web.PaginationSupport;
+import backend.example.civicbuild.common.web.SearchSupport;
 import backend.example.civicbuild.storage.DetectedFileType;
 import backend.example.civicbuild.storage.FileUploadValidator;
 import backend.example.civicbuild.storage.StorageService;
@@ -65,7 +66,7 @@ public class CatalogService {
     public PageResponse<SupplierResponse> listSuppliers(String q, String category, Integer page, Integer limit) {
         Pageable pageable = PaginationSupport.pageable(page, limit);
         Page<backend.example.civicbuild.catalog.entity.Supplier> result =
-                supplierRepository.search(q, category, pageable);
+                supplierRepository.search(SearchSupport.likePattern(q), category, pageable);
         List<SupplierResponse> items = result.getContent().stream().map(SupplierResponse::from).toList();
         return PageResponse.of(items, result.getNumber(), result.getSize(), result.getTotalElements());
     }
@@ -81,7 +82,8 @@ public class CatalogService {
     public PageResponse<ProductResponse> listProducts(
             String q, String category, UUID supplierId, UUID agencyId, Integer page, Integer limit) {
         Pageable pageable = PaginationSupport.pageable(page, limit);
-        Page<Product> result = productRepository.search(q, category, supplierId, agencyId, pageable);
+        Page<Product> result = productRepository.search(
+                SearchSupport.likePattern(q), category, supplierId, agencyId, pageable);
         List<ProductResponse> items = result.getContent().stream().map(ProductResponse::from).toList();
         return PageResponse.of(items, result.getNumber(), result.getSize(), result.getTotalElements());
     }

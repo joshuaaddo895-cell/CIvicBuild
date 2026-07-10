@@ -22,6 +22,7 @@ import backend.example.civicbuild.auth.repository.UserRepository;
 import backend.example.civicbuild.auth.security.AuthenticatedUser;
 import backend.example.civicbuild.common.dto.PageResponse;
 import backend.example.civicbuild.common.web.PaginationSupport;
+import backend.example.civicbuild.common.web.SearchSupport;
 import backend.example.civicbuild.delivery.entity.DeliveryApprovalStatus;
 import backend.example.civicbuild.delivery.entity.DeliveryProvider;
 import backend.example.civicbuild.delivery.repository.DeliveryProviderRepository;
@@ -106,7 +107,7 @@ public class AgencyService {
     @Transactional(readOnly = true)
     public PageResponse<AgencyResponse> listAgencies(String q, Integer page, Integer limit) {
         Pageable pageable = PaginationSupport.pageable(page, limit);
-        Page<Agency> result = agencyRepository.search(q, pageable);
+        Page<Agency> result = agencyRepository.search(SearchSupport.likePattern(q), pageable);
         List<AgencyResponse> items = result.getContent().stream().map(AgencyResponse::from).toList();
         return PageResponse.of(items, result.getNumber(), result.getSize(), result.getTotalElements());
     }

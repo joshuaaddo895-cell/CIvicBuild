@@ -14,13 +14,13 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @Query("""
             SELECT p FROM Product p
             WHERE p.active = true
-              AND (:q IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :q, '%')))
+              AND (:namePattern IS NULL OR LOWER(p.name) LIKE :namePattern)
               AND (:category IS NULL OR p.category = :category)
               AND (:supplierId IS NULL OR p.supplier.id = :supplierId)
               AND (:agencyId IS NULL OR p.agency.id = :agencyId)
             """)
     Page<Product> search(
-            @Param("q") String q,
+            @Param("namePattern") String namePattern,
             @Param("category") String category,
             @Param("supplierId") UUID supplierId,
             @Param("agencyId") UUID agencyId,
