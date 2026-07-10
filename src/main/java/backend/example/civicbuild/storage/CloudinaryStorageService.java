@@ -87,13 +87,15 @@ public class CloudinaryStorageService implements StorageService {
             String deliveryUrl = includeDeliveryUrl ? (String) response.get("secure_url") : null;
             return new StoredFile(storedPublicId, resourceType, format, deliveryUrl);
         } catch (IOException e) {
-            log.warn("Cloudinary upload failed for publicId={}: {}", publicId, e.getMessage());
+            log.warn("Cloudinary upload failed for publicId={}: {}", publicId, e.getMessage(), e);
             throw new StorageException("File upload failed");
         } catch (Exception e) {
             log.warn(
-                    "Cloudinary upload failed for publicId={}: {}",
+                    "Cloudinary upload failed for publicId={}: {} - {}",
                     publicId,
-                    e.getClass().getSimpleName());
+                    e.getClass().getSimpleName(),
+                    e.getMessage(),
+                    e);
             throw new StorageException("File upload failed");
         }
     }

@@ -8,6 +8,7 @@ import backend.example.civicbuild.auth.entity.User;
 import backend.example.civicbuild.auth.exception.UserNotFoundException;
 import backend.example.civicbuild.auth.repository.UserRepository;
 import backend.example.civicbuild.auth.security.AuthenticatedUser;
+import backend.example.civicbuild.auth.security.UserRoleResolver;
 import backend.example.civicbuild.common.exception.ForbiddenException;
 import backend.example.civicbuild.common.exception.NotFoundException;
 import backend.example.civicbuild.delivery.dto.DeliveryJobResponse;
@@ -33,18 +34,21 @@ public class DeliveryProviderService {
     private final UserRepository userRepository;
     private final AgencyRepository agencyRepository;
     private final NotificationService notificationService;
+    private final UserRoleResolver userRoleResolver;
 
     public DeliveryProviderService(
             DeliveryProviderRepository providerRepository,
             DeliveryJobRepository jobRepository,
             UserRepository userRepository,
             AgencyRepository agencyRepository,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            UserRoleResolver userRoleResolver) {
         this.providerRepository = providerRepository;
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.agencyRepository = agencyRepository;
         this.notificationService = notificationService;
+        this.userRoleResolver = userRoleResolver;
     }
 
     @Transactional
@@ -136,7 +140,7 @@ public class DeliveryProviderService {
     }
 
     private void requireDeliveryRole(AuthenticatedUser actor) {
-        if (actor.role() != Role.DELIVERY_PROVIDER && actor.role() != Role.ADMIN) {
+        if (!userRoleResolver.hasAnyRole(actor, Role.DELIVERY_PROVIDER, Role.ADMIN)) {
             throw new ForbiddenException("Delivery provider role required");
         }
     }

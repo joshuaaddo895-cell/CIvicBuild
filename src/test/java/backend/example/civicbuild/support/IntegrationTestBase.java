@@ -80,6 +80,10 @@ public abstract class IntegrationTestBase {
         return "http://localhost:" + port + "/api/agency/portfolio" + path;
     }
 
+    protected String agenciesUrl(String path) {
+        return "http://localhost:" + port + "/api/agencies" + path;
+    }
+
     protected HttpHeaders bearerHeaders(String accessToken) {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(accessToken);

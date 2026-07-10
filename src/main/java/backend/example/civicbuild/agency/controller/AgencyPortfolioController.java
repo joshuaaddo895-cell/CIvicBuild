@@ -8,7 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,7 +24,7 @@ public class AgencyPortfolioController {
 
     @PostMapping("/upload")
     public ResponseEntity<ApiResponse<PortfolioUploadResponse>> uploadPortfolioImage(
-            @AuthenticationPrincipal AuthenticatedUser user, @RequestPart("file") MultipartFile file) {
+            @AuthenticationPrincipal AuthenticatedUser user, @RequestParam("file") MultipartFile file) {
         PortfolioUploadResponse response = agencyPortfolioService.uploadPortfolioImage(user, file);
         return ResponseEntity.ok(ApiResponse.ok("Portfolio image uploaded successfully", response));
     }
