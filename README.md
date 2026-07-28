@@ -4,6 +4,8 @@ Spring Boot REST API for **CivicBuild** — a construction marketplace platform 
 
 This repository contains the backend: authentication, Google Sign-In, onboarding, marketplace catalog, agencies, orders, Paystack payments, messaging, and Cloudinary file storage.
 
+> Note: README updated for clarity by joshuaaddo895-cell (2026-07-28).
+
 **Production API:** https://civicbuild-production.up.railway.app
 
 ---
